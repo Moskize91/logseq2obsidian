@@ -298,10 +298,20 @@ class ObsidianFormatter:
             # 处理不同类型的属性
             if key == "alias":
                 # 别名转换为 aliases 数组
-                aliases = [alias.strip() for alias in value.split(',')]
+                # 首先提取所有 [[]] 格式的页面链接
+                page_link_matches = re.findall(r'\[\[([^\]]+)\]\]', value)
+                if page_link_matches:
+                    # 如果有页面链接，使用页面链接内容作为别名
+                    aliases = page_link_matches
+                else:
+                    # 否则按逗号分割
+                    aliases = [alias.strip() for alias in value.split(',')]
+                
                 frontmatter_lines.append("aliases:")
                 for alias in aliases:
-                    frontmatter_lines.append(f"  - {alias}")
+                    # 确保别名不为空
+                    if alias.strip():
+                        frontmatter_lines.append(f"  - {alias.strip()}")
             elif key == "tags":
                 # 标签处理：提取 [[]] 内的内容
                 tag_matches = re.findall(r'\[\[([^\]]+)\]\]', value)
