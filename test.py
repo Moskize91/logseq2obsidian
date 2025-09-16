@@ -63,6 +63,7 @@ def main():
     test_files = [
         tests_dir / "test_basic.py",
         tests_dir / "test_bug_fixes.py",
+        tests_dir / "test_meta_properties.py",  # 新增的 meta 属性测试
     ]
     
     print("Logseq2Obsidian 测试套件")

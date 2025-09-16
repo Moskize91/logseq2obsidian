@@ -21,9 +21,15 @@ class ObsidianFormatter:
         """将解析的 Logseq 数据转换为 Obsidian 格式"""
         lines = parsed_data['content'].split('\n')
         
+        # 生成 YAML frontmatter（如果有 meta 属性）
+        frontmatter = self._generate_frontmatter(parsed_data.get('meta_properties', []))
+        
+        # 移除原始内容中的 meta 属性行
+        filtered_lines = self._filter_meta_lines(lines, parsed_data.get('meta_properties', []))
+        
         # 处理每一行
         formatted_lines = []
-        for line in lines:
+        for line in filtered_lines:
             formatted_line = self._process_line(line, parsed_data)
             formatted_lines.append(formatted_line)
         
@@ -31,7 +37,11 @@ class ObsidianFormatter:
         if self.remove_top_level_bullets:
             formatted_lines = self._remove_top_level_bullets(formatted_lines)
         
-        return '\n'.join(formatted_lines)
+        # 组合 frontmatter 和内容
+        if frontmatter:
+            return frontmatter + '\n' + '\n'.join(formatted_lines)
+        else:
+            return '\n'.join(formatted_lines)
     
     def _process_line(self, line: str, parsed_data: Dict) -> str:
         """处理单行内容"""
@@ -270,3 +280,84 @@ class ObsidianFormatter:
         normalized_indent = '  ' * indent_level
         
         return normalized_indent + stripped
+    
+    def _generate_frontmatter(self, meta_properties) -> str:
+        """生成 YAML frontmatter"""
+        if not meta_properties:
+            return ""
+        
+        frontmatter_lines = ["---"]
+        
+        for prop in meta_properties:
+            key = prop.key
+            value = prop.value
+            
+            # 处理不同类型的属性
+            if key == "alias":
+                # 别名转换为 aliases 数组
+                aliases = [alias.strip() for alias in value.split(',')]
+                frontmatter_lines.append("aliases:")
+                for alias in aliases:
+                    frontmatter_lines.append(f"  - {alias}")
+            elif key == "tags":
+                # 标签处理：提取 [[]] 内的内容
+                tag_matches = re.findall(r'\[\[([^\]]+)\]\]', value)
+                if tag_matches:
+                    frontmatter_lines.append("tags:")
+                    for tag in tag_matches:
+                        frontmatter_lines.append(f"  - {tag}")
+                else:
+                    # 如果没有 [[]] 格式，按逗号分割
+                    tags = [tag.strip() for tag in value.split(',')]
+                    frontmatter_lines.append("tags:")
+                    for tag in tags:
+                        frontmatter_lines.append(f"  - {tag}")
+            elif key == "created-at":
+                # 日期属性
+                frontmatter_lines.append(f"created: {value}")
+            elif key == "type":
+                # 类型属性
+                frontmatter_lines.append(f"type: {value}")
+            elif key == "author":
+                # 作者属性
+                frontmatter_lines.append(f"author: {value}")
+            elif key == "status":
+                # 状态属性
+                frontmatter_lines.append(f"status: {value}")
+            elif key == "priority":
+                # 优先级属性
+                frontmatter_lines.append(f"priority: {value}")
+            elif key == "description":
+                # 描述属性（可能包含换行，用引号包围）
+                frontmatter_lines.append(f"description: \"{value}\"")
+            else:
+                # 其他属性直接添加
+                frontmatter_lines.append(f"{key}: {value}")
+        
+        frontmatter_lines.append("---")
+        return '\n'.join(frontmatter_lines)
+    
+    def _filter_meta_lines(self, lines, meta_properties):
+        """过滤掉原始内容中的 meta 属性行"""
+        if not meta_properties:
+            return lines
+        
+        # 获取所有 meta 属性的行号
+        meta_line_numbers = {prop.line_number for prop in meta_properties}
+        
+        # 过滤掉这些行，同时跳过文件开头的空行
+        filtered_lines = []
+        content_started = False
+        
+        for i, line in enumerate(lines, 1):
+            if i in meta_line_numbers:
+                continue  # 跳过 meta 属性行
+            
+            # 跳过文件开头的空行（在 meta 属性之后）
+            if not content_started and not line.strip():
+                continue
+            
+            content_started = True
+            filtered_lines.append(line)
+        
+        return filtered_lines

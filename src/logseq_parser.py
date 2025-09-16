@@ -27,6 +27,15 @@ class LogseqReference:
     position: Tuple[int, int] = (0, 0)  # (start, end)
 
 
+@dataclass
+class LogseqMetaProperty:
+    """Logseq meta 属性数据结构"""
+    key: str
+    value: str
+    raw_value: str  # 保留原始值（可能包含链接等）
+    line_number: int
+
+
 class LogseqParser:
     """Logseq 文件解析器"""
     
@@ -36,6 +45,8 @@ class LogseqParser:
         self.block_ref_pattern = re.compile(r'\(\(([^)]+)\)\)')
         self.block_id_pattern = re.compile(r'id:: ([a-f0-9-]+)')
         self.asset_pattern = re.compile(r'!\[([^\]]*)\]\(([^)]+)\)')
+        # Meta 属性模式
+        self.meta_pattern = re.compile(r'^(\w+(?:-\w+)*)::\s*(.+)$')
         
     def parse_file(self, file_path: Path) -> Dict:
         """解析单个 Logseq 文件"""
@@ -46,7 +57,7 @@ class LogseqParser:
             return self.parse_content(content, file_path.name)
             
         except Exception as e:
-            raise Exception(f"解析文件 {file_path} 时出错: {e}")
+            raise ValueError(f"解析文件 {file_path} 时出错: {e}") from e
     
     def parse_content(self, content: str, filename: str = "") -> Dict:
         """解析 Logseq 文件内容"""
@@ -54,8 +65,30 @@ class LogseqParser:
         
         blocks = []
         references = []
+        meta_properties = []
         
-        for line_num, line in enumerate(lines, 1):
+        # First pass: extract meta properties from the beginning of the file
+        meta_line_count = 0
+        for i, line in enumerate(lines):
+            stripped_line = line.strip()
+            if not stripped_line:
+                meta_line_count = i + 1
+                continue
+            if self.meta_pattern.match(stripped_line):
+                meta_prop = self._extract_meta_property(stripped_line, i + 1)
+                if meta_prop:
+                    meta_properties.append(meta_prop)
+                meta_line_count = i + 1
+            else:
+                # Stop when we hit the first non-meta, non-empty line
+                break
+        
+        # Second pass: parse blocks and references starting after meta properties
+        for line_num in range(meta_line_count + 1, len(lines) + 1):
+            if line_num > len(lines):
+                break
+            line = lines[line_num - 1]
+            
             # 解析块
             block = self._parse_line_as_block(line, line_num)
             if block:
@@ -70,6 +103,7 @@ class LogseqParser:
             'content': content,
             'blocks': blocks,
             'references': references,
+            'meta_properties': meta_properties,
             'page_links': [ref for ref in references if ref.type == 'page_link'],
             'block_refs': [ref for ref in references if ref.type == 'block_ref'],
             'assets': [ref for ref in references if ref.type == 'asset']
@@ -130,10 +164,29 @@ class LogseqParser:
         
         return references
     
+    def _extract_meta_property(self, line: str, line_num: int) -> Optional[LogseqMetaProperty]:
+        """从行中提取 meta 属性"""
+        match = self.meta_pattern.match(line.strip())
+        if match:
+            key = match.group(1)
+            raw_value = match.group(2)
+            
+            # 清理值：移除多余的空格，但保留原始格式用于引用解析
+            value = raw_value.strip()
+            
+            return LogseqMetaProperty(
+                key=key,
+                value=value,
+                raw_value=raw_value,
+                line_number=line_num
+            )
+        return None
+    
     def get_statistics(self, parsed_data: Dict) -> Dict:
         """获取解析统计信息"""
         return {
             'total_blocks': len(parsed_data['blocks']),
+            'meta_properties_count': len(parsed_data.get('meta_properties', [])),
             'page_links_count': len(parsed_data['page_links']),
             'block_refs_count': len(parsed_data['block_refs']),
             'assets_count': len(parsed_data['assets']),
