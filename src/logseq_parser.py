@@ -4,6 +4,7 @@ Logseq 解析器
 """
 
 import re
+import logging
 from pathlib import Path
 from typing import Dict, List, Tuple, Optional
 from dataclasses import dataclass
@@ -48,13 +49,66 @@ class LogseqParser:
         # Meta 属性模式（支持前面有列表标记）
         self.meta_pattern = re.compile(r'^(?:[-*]\s+)?(\w+(?:-\w+)*)::\s*(.+)$')
         
-    def parse_file(self, file_path: Path) -> Dict:
-        """解析单个 Logseq 文件"""
+    def _read_file_robust(self, file_path: Path) -> Tuple[str, bool]:
+        """
+        健壮地读取文件，处理UTF-8编码错误
+        
+        Returns:
+            Tuple[str, bool]: (文件内容, 是否有编码错误)
+        """
+        # 首先尝试正常读取
         try:
             with open(file_path, 'r', encoding='utf-8') as f:
                 content = f.read()
+            return content, False
+        except UnicodeDecodeError:
+            pass
+        
+        # 如果UTF-8失败，尝试使用 'replace' 错误处理
+        try:
+            with open(file_path, 'r', encoding='utf-8', errors='replace') as f:
+                content = f.read()
+                print(f"⚠️  文件 {file_path.name} 含有无效UTF-8字符，已使用替换字符处理")
+                return content, True
+        except OSError:
+            pass
+        
+        # 如果还是失败，尝试 'ignore' 错误处理
+        try:
+            with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                content = f.read()
+                print(f"⚠️  文件 {file_path.name} 含有无效UTF-8字符，已忽略错误字符")
+                return content, True
+        except OSError:
+            pass
+        
+        # 最后尝试二进制读取并手动处理
+        try:
+            with open(file_path, 'rb') as f:
+                raw_bytes = f.read()
             
-            return self.parse_content(content, file_path.name)
+            # 尝试解码，如果遇到错误就替换
+            content = raw_bytes.decode('utf-8', errors='replace')
+            print(f"⚠️  文件 {file_path.name} 使用二进制读取模式处理编码错误")
+            return content, True
+            
+        except OSError as e:
+            # 如果所有方法都失败，返回错误信息
+            error_content = f"# 文件读取失败\n\n无法读取文件 {file_path.name}，错误：{e}\n"
+            print(f"❌ 无法读取文件 {file_path.name}: {e}")
+            return error_content, True
+        
+    def parse_file(self, file_path: Path) -> Dict:
+        """解析单个 Logseq 文件"""
+        try:
+            content, has_encoding_errors = self._read_file_robust(file_path)
+            
+            result = self.parse_content(content, file_path.name)
+            
+            # 在结果中添加编码错误信息
+            result['has_encoding_errors'] = has_encoding_errors
+            
+            return result
             
         except Exception as e:
             raise ValueError(f"解析文件 {file_path} 时出错: {e}") from e
