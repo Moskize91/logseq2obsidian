@@ -88,7 +88,22 @@ def convert_logseq_to_obsidian(remove_top_level_bullets=False, category_tag=None
         print("❌ 没有找到 markdown 文件")
         return []
     
-    # 转换每个文件
+    # 第一阶段：收集所有文件的块ID映射
+    print(f"\n🔍 第一阶段：收集块ID映射...")
+    for i, md_file in enumerate(md_files, 1):
+        try:
+            parsed_data = parser.parse_file(md_file)
+            # 生成文件名用于映射
+            output_filename = formatter.generate_filename(md_file.stem)
+            # 收集这个文件的块映射
+            formatter.collect_block_mappings(output_filename, parsed_data)
+        except Exception as e:
+            print(f"   ⚠️  收集映射失败 [{i}/{len(md_files)}] {md_file.stem}: {e}")
+    
+    print(f"   ✅ 收集完成，共 {len(formatter.block_uuid_map)} 个块映射")
+    
+    # 第二阶段：转换每个文件
+    print(f"\n🔄 第二阶段：转换文件内容...")
     for i, md_file in enumerate(md_files, 1):
         relative_path = md_file.relative_to(LOGSEQ_DATA_DIR)
         print(f"\n📄 [{i}/{len(md_files)}] {relative_path}")
@@ -97,8 +112,11 @@ def convert_logseq_to_obsidian(remove_top_level_bullets=False, category_tag=None
             # 解析文件
             parsed_data = parser.parse_file(md_file)
             
-            # 格式转换
-            converted_content = formatter.format_content(parsed_data)
+            # 生成输出文件名
+            output_filename = formatter.generate_filename(md_file.stem)
+            
+            # 格式转换（现在包含正确的块引用）
+            converted_content = formatter.format_content(parsed_data, output_filename)
             
             # 直接使用转换后的内容，不添加 frontmatter
             final_content = converted_content

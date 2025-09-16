@@ -22,9 +22,32 @@ class ObsidianFormatter:
         self.category_folder = category_folder  # 例如 "wiki"
         # 输入assets目录路径（用于检查文件是否存在）
         self.input_assets_dir = input_assets_dir
+        # 块引用映射：UUID -> (文件名, 块ID)
+        self.block_uuid_map = {}
+        # 当前正在处理的文件名
+        self.current_filename = None
     
-    def format_content(self, parsed_data: Dict) -> str:
+    def collect_block_mappings(self, filename: str, parsed_data: Dict):
+        """第一阶段：收集文件中的所有块ID映射"""
+        lines = parsed_data['content'].split('\n')
+        self.current_filename = filename
+        
+        for line in lines:
+            # 查找 id:: uuid 格式的块ID定义
+            id_match = re.search(r'id:: ([a-f0-9-]+)', line)
+            if id_match:
+                uuid = id_match.group(1)
+                # 生成对应的块ID
+                self.block_ref_counter += 1
+                block_id = f"block{self.block_ref_counter}"
+                # 存储映射：UUID -> (文件名, 块ID)
+                self.block_uuid_map[uuid] = (filename, block_id)
+    
+    def format_content(self, parsed_data: Dict, filename: str = None) -> str:
         """将解析的 Logseq 数据转换为 Obsidian 格式"""
+        if filename:
+            self.current_filename = filename
+            
         lines = parsed_data['content'].split('\n')
         
         # 生成 YAML frontmatter（如果有 meta 属性）
@@ -100,11 +123,25 @@ class ObsidianFormatter:
         return re.sub(r'\[\[([^\]]+)\]\]', replace_link, line)
 
     def _convert_block_refs(self, line: str) -> str:
-        """处理块引用 - Obsidian 没有对应语法，转换为注释"""
+        """处理块引用 - 转换为 Obsidian 块链接格式"""
         def replace_block_ref(match):
             block_uuid = match.group(1)
-            # 转换为注释形式
-            return f"<!-- Block Reference: {block_uuid} -->"
+            
+            # 查找对应的块映射
+            if block_uuid in self.block_uuid_map:
+                target_filename, block_id = self.block_uuid_map[block_uuid]
+                
+                # 如果引用的是同一个文件内的块，使用简化格式
+                if target_filename == self.current_filename:
+                    return f"[[#{block_id}]]"
+                else:
+                    # 跨文件引用，使用完整格式
+                    # 处理文件名：移除.md扩展名
+                    clean_filename = target_filename.replace('.md', '') if target_filename.endswith('.md') else target_filename
+                    return f"[[{clean_filename}#{block_id}]]"
+            else:
+                # 找不到对应的块，保留为注释以便调试
+                return f"<!-- Block Reference (未找到): {block_uuid} -->"
         
         return re.sub(r'\(\(([^)]+)\)\)', replace_block_ref, line)
     
@@ -112,10 +149,17 @@ class ObsidianFormatter:
         """转换块 ID 为 Obsidian 块引用格式"""
         def replace_block_id(match):
             uuid = match.group(1)
-            # 生成简短的块引用 ID
-            self.block_ref_counter += 1
-            block_id = f"block{self.block_ref_counter}"
-            return f"^{block_id}"
+            
+            # 查找已经映射的块ID
+            if uuid in self.block_uuid_map:
+                _, block_id = self.block_uuid_map[uuid]
+                return f"^{block_id}"
+            else:
+                # 这种情况不应该发生，因为我们已经预先收集了所有映射
+                # 但为了安全起见，生成一个新的块ID
+                self.block_ref_counter += 1
+                block_id = f"block{self.block_ref_counter}"
+                return f"^{block_id}"
         
         return re.sub(r'id:: ([a-f0-9-]+)', replace_block_id, line)
     
