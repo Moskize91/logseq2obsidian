@@ -207,4 +207,10 @@ marimo/_lsp/
 __marimo__/
 
 # Project specific - test samples and examples
-examples/
+examples/logseq_data/
+examples/obsidian_output/
+
+# Test output directories
+tests/output/
+tests/temp/
+tests/test_data/

@@ -1,0 +1,16 @@
+{
+    "python-envs.defaultEnvManager": "ms-python.python:conda",
+    "python-envs.defaultPackageManager": "ms-python.python:conda",
+    "python-envs.pythonProjects": [],
+    "python.defaultInterpreterPath": "./.conda/python",
+    "python.analysis.extraPaths": [
+        "./src"
+    ],
+    "python.analysis.autoSearchPaths": true,
+    "python.analysis.autoImportCompletions": true,
+    "python.terminal.activateEnvironment": true,
+    "files.associations": {
+        "*.md": "markdown"
+    },
+    "python.analysis.typeCheckingMode": "basic"
+}
