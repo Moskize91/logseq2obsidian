@@ -24,9 +24,150 @@ class ObsidianFormatter:
         self.input_assets_dir = input_assets_dir
         # 块引用映射：UUID -> (文件名, 块ID)
         self.block_uuid_map = {}
+        # PDF 高亮映射：UUID -> (PDF路径, 页码, 高亮文本)
+        self.pdf_highlight_map = {}
         # 当前正在处理的文件名
         self.current_filename = None
     
+    def collect_pdf_highlights(self, logseq_dir: str):
+        """收集所有 PDF 高亮映射"""
+        logseq_path = Path(logseq_dir)
+        
+        # 收集所有 hls__ 文件
+        pages_dir = logseq_path / "pages"
+        hls_files = pages_dir.glob("hls__*.md")
+        
+        for hls_file in hls_files:
+            self._parse_hls_file(hls_file)
+            
+        # 收集 .edn 文件中的精确坐标信息
+        self._collect_edn_highlights(logseq_path)
+    
+    def _parse_hls_file(self, hls_file: Path):
+        """解析单个 hls__ 文件"""
+        with open(hls_file, 'r', encoding='utf-8') as f:
+            content = f.read()
+        
+        lines = content.split('\n')
+        
+        # 查找 PDF 文件路径
+        pdf_path = None
+        for line in lines:
+            if line.startswith('file-path::'):
+                pdf_path = line.split('::', 1)[1].strip()
+                break
+        
+        if not pdf_path:
+            return
+        
+        # 解析高亮注释
+        current_highlight = {}
+        for line in lines:
+            line = line.strip()
+            
+            if line.startswith('- ') and not line.startswith('  '):
+                # 新的高亮开始，保存之前的
+                if current_highlight.get('id'):
+                    self._save_highlight(pdf_path, current_highlight)
+                    current_highlight = {}
+                
+                # 提取高亮文本
+                highlight_text = line[2:].strip()
+                if highlight_text and not highlight_text.startswith('[:span]'):
+                    current_highlight['text'] = highlight_text
+            
+            elif line.startswith('id::'):
+                current_highlight['id'] = line.split('::', 1)[1].strip()
+            elif line.startswith('hl-page::'):
+                current_highlight['page'] = line.split('::', 1)[1].strip()
+            elif line.startswith('hl-color::'):
+                current_highlight['color'] = line.split('::', 1)[1].strip()
+        
+        # 保存最后一个高亮
+        if current_highlight.get('id'):
+            self._save_highlight(pdf_path, current_highlight)
+    
+    def _save_highlight(self, pdf_path: str, highlight: dict):
+        """保存高亮到映射表"""
+        uuid = highlight.get('id')
+        if uuid:
+            self.pdf_highlight_map[uuid] = {
+                'pdf_path': pdf_path,
+                'page': highlight.get('page', ''),
+                'text': highlight.get('text', ''),
+                'color': highlight.get('color', ''),
+                'coordinates': highlight.get('coordinates'),  # 新增：坐标信息
+                'screenshot_path': highlight.get('screenshot_path')  # 新增：截图路径
+            }
+
+    def _collect_edn_highlights(self, logseq_path: Path):
+        """收集 .edn 文件中的精确坐标信息"""
+        
+        # 查找 assets 目录下的 .edn 文件
+        assets_dir = logseq_path / "assets"
+        if not assets_dir.exists():
+            return
+            
+        for edn_file in assets_dir.glob("*.edn"):
+            try:
+                # 读取 .edn 文件内容
+                with open(edn_file, 'r', encoding='utf-8') as f:
+                    content = f.read()
+                
+                # 解析 PDF 名称
+                pdf_name = edn_file.stem  # 去掉 .edn 扩展名
+                pdf_path = f"../assets/{pdf_name}.pdf"
+                
+                # 查找对应的截图目录
+                screenshot_dir = assets_dir / pdf_name
+                
+                # 使用正则表达式解析 UUID 和坐标信息
+                # 匹配格式：{:id #uuid "uuid-string", :page N, :position {...}}
+                highlight_pattern = r':id #uuid "([^"]+)".*?:page (\d+).*?:position \{:bounding \{:x1 ([^,]+),.*?:y1 ([^,]+),.*?:x2 ([^,]+),.*?:y2 ([^,]+),.*?:width ([^,]+),.*?:height ([^}]+)'
+                
+                for match in re.finditer(highlight_pattern, content, re.DOTALL):
+                    uuid = match.group(1)
+                    page = match.group(2)
+                    x1, y1, x2, y2 = match.group(3), match.group(4), match.group(5), match.group(6)
+                    width, height = match.group(7), match.group(8)
+                    
+                    # 查找对应的截图文件
+                    screenshot_path = None
+                    if screenshot_dir.exists():
+                        screenshot_pattern = f"{page}_{uuid}_*.png"
+                        screenshot_files = list(screenshot_dir.glob(screenshot_pattern))
+                        if screenshot_files:
+                            # 使用相对路径
+                            screenshot_path = f"assets/{pdf_name}/{screenshot_files[0].name}"
+                    
+                    # 更新或创建高亮映射
+                    coordinates_data = {
+                        'x1': float(x1), 'y1': float(y1), 
+                        'x2': float(x2), 'y2': float(y2),
+                        'width': float(width), 'height': float(height)
+                    }
+                    
+                    if uuid in self.pdf_highlight_map:
+                        # 更新现有映射
+                        self.pdf_highlight_map[uuid]['coordinates'] = coordinates_data
+                        if screenshot_path:
+                            self.pdf_highlight_map[uuid]['screenshot_path'] = screenshot_path
+                    else:
+                        # 创建新映射（可能 hls__ 文件不存在）
+                        self.pdf_highlight_map[uuid] = {
+                            'pdf_path': pdf_path,
+                            'page': page,
+                            'text': '',  # .edn 文件中没有文本内容
+                            'color': '',
+                            'coordinates': coordinates_data,
+                            'screenshot_path': screenshot_path
+                        }
+                        
+            except (FileNotFoundError, PermissionError, UnicodeDecodeError) as e:
+                # 忽略文件处理错误，继续处理其他文件
+                print(f"   ⚠️  解析 .edn 文件失败: {edn_file.name}: {e}")
+                continue
+
     def collect_block_mappings(self, filename: str, parsed_data: Dict):
         """第一阶段：收集文件中的所有块ID映射"""
         lines = parsed_data['content'].split('\n')
@@ -43,7 +184,7 @@ class ObsidianFormatter:
                 # 存储映射：UUID -> (文件名, 块ID)
                 self.block_uuid_map[uuid] = (filename, block_id)
     
-    def format_content(self, parsed_data: Dict, filename: str = None) -> str:
+    def format_content(self, parsed_data: Dict, filename: str = "") -> str:
         """将解析的 Logseq 数据转换为 Obsidian 格式"""
         if filename:
             self.current_filename = filename
@@ -77,7 +218,7 @@ class ObsidianFormatter:
         else:
             return '\n'.join(formatted_lines)
     
-    def _process_line(self, line: str, parsed_data: Dict) -> str:
+    def _process_line(self, line: str, _parsed_data: Dict) -> str:
         """处理单行内容"""
         processed_line = line
         
@@ -115,7 +256,31 @@ class ObsidianFormatter:
         """转换页面链接格式"""
         def replace_link(match):
             link_text = match.group(1)
-            # 处理文件名：解码 URL 编码并替换 Obsidian 不支持的字符
+            
+            # 检查是否为 hls__ 高亮文件的引用
+            if link_text.startswith('hls__'):
+                # 如果包含块ID，尝试转换为 PDF 引用
+                if '#' in link_text:
+                    _, block_id = link_text.split('#', 1)
+                    
+                    # 查找对应的 PDF 高亮
+                    for _, highlight in self.pdf_highlight_map.items():
+                        if highlight.get('block_id') == block_id:
+                            pdf_path = highlight['pdf_path']
+                            page = highlight['page']
+                            text = highlight['text']
+                            if text and page:
+                                return f"[{text}]({pdf_path}#page={page})"
+                            elif page:
+                                return f"[PDF页{page}]({pdf_path}#page={page})"
+                    
+                    # 如果找不到，返回注释
+                    return f"<!-- PDF高亮引用 (未找到): {link_text} -->"
+                else:
+                    # 直接引用 hls__ 文件，返回注释
+                    return f"<!-- PDF高亮文件引用: {link_text} -->"
+            
+            # 处理普通文件名：解码 URL 编码并替换 Obsidian 不支持的字符
             processed_link = FilenameProcessor.process_page_link(link_text)
             # Obsidian 双链基本兼容，但需要确保文件扩展名
             return f"[[{processed_link}]]"
@@ -123,24 +288,96 @@ class ObsidianFormatter:
         return re.sub(r'\[\[([^\]]+)\]\]', replace_link, line)
 
     def _convert_block_refs(self, line: str) -> str:
-        """处理块引用 - 转换为 Obsidian 块链接格式"""
+        """处理块引用 - 转换为 Obsidian 块链接或 PDF 注释引用格式"""
         def replace_block_ref(match):
             block_uuid = match.group(1)
             
+            # 首先检查是否为 PDF 高亮引用
+            if block_uuid in self.pdf_highlight_map:
+                highlight = self.pdf_highlight_map[block_uuid]
+                pdf_path = highlight['pdf_path']
+                page = highlight['page']
+                text = highlight['text']
+                coordinates = highlight.get('coordinates')
+                screenshot_path = highlight.get('screenshot_path')
+                
+                # 构建链接文本，优先使用高亮文本
+                if text and page:
+                    link_text = text
+                elif page:
+                    link_text = f"PDF页{page}"
+                else:
+                    link_text = "PDF注释"
+                
+                # 转换为 Obsidian 的 PDF 注释格式
+                if page:
+                    # 构建基础 PDF 路径（移除 ../ 前缀以适配 Obsidian 链接格式）
+                    clean_pdf_path = pdf_path.replace('../assets/', '')
+                    
+                    # 如果有坐标信息，使用 Obsidian 的 selection 格式
+                    if coordinates:
+                        x1, y1, x2, y2 = coordinates['x1'], coordinates['y1'], coordinates['x2'], coordinates['y2']
+                        
+                        # 尝试不同的坐标格式转换
+                        # 方法1: 归一化坐标 (如果有页面尺寸信息)
+                        if 'width' in coordinates and 'height' in coordinates:
+                            width, height = coordinates['width'], coordinates['height']
+                            # 转换为0-100的百分比坐标
+                            x1_norm = int((x1 / width) * 100)
+                            y1_norm = int((y1 / height) * 100)
+                            x2_norm = int((x2 / width) * 100)
+                            y2_norm = int((y2 / height) * 100)
+                            selection = f"{x1_norm},{y1_norm},{x2_norm},{y2_norm}"
+                        else:
+                            # 方法2: 缩放坐标 (将像素坐标缩放到较小范围)
+                            scale_factor = 100  # 实验性缩放因子
+                            x1_scaled = int(x1 / scale_factor)
+                            y1_scaled = int(y1 / scale_factor)
+                            x2_scaled = int(x2 / scale_factor)
+                            y2_scaled = int(y2 / scale_factor)
+                            selection = f"{x1_scaled},{y1_scaled},{x2_scaled},{y2_scaled}"
+                        
+                        pdf_link = f"{clean_pdf_path}#page={page}&selection={selection}"
+                        
+                        # 使用 Obsidian 的内部链接格式 [[file#params|display_text]]
+                        # 只使用原始高亮文本作为显示文本，如果没有文本则使用简洁的页面格式
+                        if text and text.strip():
+                            display_text = text.strip()
+                            result = f"[[{pdf_link}|{display_text}]]"
+                        else:
+                            # 没有文本时使用简洁格式
+                            result = f"[[{pdf_link}|页面 {page}]]"
+                    else:
+                        # 没有坐标信息，使用标准页面链接
+                        result = f"[{link_text}]({pdf_path}#page={page})"
+                    
+                    # 如果有截图，添加截图引用
+                    if screenshot_path:
+                        if coordinates:
+                            x1, y1 = coordinates['x1'], coordinates['y1']
+                            result += f"\n\n![PDF截图 - 坐标({x1:.0f},{y1:.0f})]({screenshot_path})"
+                        else:
+                            result += f"\n\n![PDF截图]({screenshot_path})"
+                    
+                    return result
+                else:
+                    return f"[{link_text}]({pdf_path})"
+            
             # 查找对应的块映射
-            if block_uuid in self.block_uuid_map:
+            elif block_uuid in self.block_uuid_map:
                 target_filename, block_id = self.block_uuid_map[block_uuid]
                 
-                # 如果引用的是同一个文件内的块，使用简化格式
+                # 使用嵌入格式 ![[]] 来实现类似 Notion 同步块的效果
                 if target_filename == self.current_filename:
-                    return f"[[#{block_id}]]"
+                    # 同文件内的块嵌入
+                    return f"![[#^{block_id}]]"
                 else:
-                    # 跨文件引用，使用完整格式
+                    # 跨文件的块嵌入
                     # 处理文件名：移除.md扩展名
                     clean_filename = target_filename.replace('.md', '') if target_filename.endswith('.md') else target_filename
-                    return f"[[{clean_filename}#{block_id}]]"
+                    return f"![[{clean_filename}#^{block_id}]]"
             else:
-                # 找不到对应的块，保留为注释以便调试
+                # 找不到对应的映射，保留为注释以便调试
                 return f"<!-- Block Reference (未找到): {block_uuid} -->"
         
         return re.sub(r'\(\(([^)]+)\)\)', replace_block_ref, line)
@@ -174,13 +411,14 @@ class ObsidianFormatter:
                 # 保持相对路径格式，Obsidian 支持从 pages/ 到 assets/ 的相对引用
                 new_path = file_path
                 
-                # 检查文件是否存在（如果有输入路径信息）
-                if hasattr(self, 'input_assets_dir'):
-                    # 构建实际文件路径进行检查
-                    actual_file_path = self.input_assets_dir / file_path.replace('../assets/', '')
-                    if not actual_file_path.exists():
-                        # 文件不存在，添加注释
-                        return f"![{alt_text}]({new_path}) <!-- ⚠️ 文件不存在: {file_path} -->"
+                # 暂时禁用文件存在性检查，因为它会破坏Markdown格式
+                # # 检查文件是否存在（如果有输入路径信息）
+                # if hasattr(self, 'input_assets_dir'):
+                #     # 构建实际文件路径进行检查
+                #     actual_file_path = self.input_assets_dir / file_path.replace('../assets/', '')
+                #     if not actual_file_path.exists():
+                #         # 文件不存在，添加注释
+                #         return f"![{alt_text}]({new_path}) <!-- ⚠️ 文件不存在: {file_path} -->"
             else:
                 new_path = file_path
             

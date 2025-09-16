@@ -132,7 +132,7 @@ class FileManager:
         return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     
     def list_logseq_files(self, logseq_dir: Path) -> List[Path]:
-        """列出 Logseq 目录中的所有 .md 文件"""
+        """列出 Logseq 目录中的所有 .md 文件（排除 hls__ 高亮注释文件）"""
         logseq_path = Path(logseq_dir)
         
         if not logseq_path.exists():
@@ -143,7 +143,10 @@ class FileManager:
         # 查找 pages 目录
         pages_dir = logseq_path / "pages"
         if pages_dir.exists():
-            md_files.extend(pages_dir.glob("*.md"))
+            for file in pages_dir.glob("*.md"):
+                # 排除 hls__ 开头的高亮注释文件
+                if not file.name.startswith("hls__"):
+                    md_files.append(file)
         
         # 查找 journals 目录  
         journals_dir = logseq_path / "journals"
@@ -151,7 +154,9 @@ class FileManager:
             md_files.extend(journals_dir.glob("*.md"))
         
         # 查找根目录的 .md 文件
-        md_files.extend(logseq_path.glob("*.md"))
+        for file in logseq_path.glob("*.md"):
+            if not file.name.startswith("hls__"):
+                md_files.append(file)
         
         return sorted(md_files)
     

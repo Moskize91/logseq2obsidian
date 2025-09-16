@@ -88,8 +88,14 @@ def convert_logseq_to_obsidian(remove_top_level_bullets=False, category_tag=None
         print("❌ 没有找到 markdown 文件")
         return []
     
-    # 第一阶段：收集所有文件的块ID映射
-    print(f"\n🔍 第一阶段：收集块ID映射...")
+    # 第一阶段：收集所有文件的块ID映射和PDF高亮信息
+    print(f"\n🔍 第一阶段：收集块ID映射和PDF高亮信息...")
+    
+    # 收集 PDF 高亮信息
+    formatter.collect_pdf_highlights(LOGSEQ_DATA_DIR)
+    print(f"   ✅ 收集PDF高亮完成，共 {len(formatter.pdf_highlight_map)} 个高亮注释")
+    
+    # 收集块ID映射
     for i, md_file in enumerate(md_files, 1):
         try:
             parsed_data = parser.parse_file(md_file)
