@@ -1,0 +1,23 @@
+[tool.poetry]
+name = "logseq2obsidian"
+version = "1.0.0"
+description = "A tool to convert Logseq notes to Obsidian format"
+authors = ["Moskize91 <moskize91@example.com>"]
+readme = "README.md"
+packages = [{include = "src"}]
+
+[tool.poetry.dependencies]
+python = "^3.10"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^7.4.0"
+
+[tool.poetry.scripts]
+convert-examples = "scripts.convert_examples:main"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.extras]
+cpu = []

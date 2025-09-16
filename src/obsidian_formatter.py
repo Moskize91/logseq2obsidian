@@ -37,19 +37,35 @@ class ObsidianFormatter:
         """处理单行内容"""
         processed_line = line
         
-        # 1. 处理页面链接 [[]]  
+        # 1. 处理 Logseq 引用块格式 "- >" -> ">"
+        processed_line = self._convert_quote_blocks(processed_line)
+        
+        # 2. 处理页面链接 [[]]  
         processed_line = self._convert_page_links(processed_line)
         
-        # 2. 处理块引用 (()) - 转换为注释或删除
+        # 3. 处理块引用 (()) - 转换为注释或删除
         processed_line = self._convert_block_refs(processed_line)
         
-        # 3. 处理块 ID - 转换为 Obsidian 块引用格式
+        # 4. 处理块 ID - 转换为 Obsidian 块引用格式
         processed_line = self._convert_block_ids(processed_line)
         
-        # 4. 处理资源文件路径
+        # 5. 处理资源文件路径
         processed_line = self._convert_asset_paths(processed_line)
         
         return processed_line
+    
+    def _convert_quote_blocks(self, line: str) -> str:
+        """转换 Logseq 引用块格式 '- >' 为 Obsidian 引用格式 '>'"""
+        # 匹配以任意数量的空格/制表符开头，然后是 "- >" 的行
+        pattern = r'^(\s*)-\s*>\s*(.*)$'
+        match = re.match(pattern, line)
+        
+        if match:
+            indent = match.group(1)  # 保留原有的缩进
+            content = match.group(2)  # 引用的内容
+            return f"{indent}> {content}"
+        
+        return line
     
     def _convert_page_links(self, line: str) -> str:
         """转换页面链接格式"""
@@ -135,13 +151,17 @@ class ObsidianFormatter:
         }
     
     def _remove_top_level_bullets(self, lines: list) -> list:
-        """删除第一级列表符号，转换为段落格式"""
+        """删除第一级列表符号，转换为段落格式，并规范化列表缩进"""
         result = []
         i = 0
         
         while i < len(lines):
             line = lines[i]
-            stripped = line.strip()
+            
+            # 跳过只有 '-' 的空行
+            if line.strip() == '-':
+                i += 1
+                continue
             
             # 检查是否是第一级列表项（没有前导空格的 "- "）
             if line.startswith('- ') and not line.startswith('  '):
@@ -151,45 +171,102 @@ class ObsidianFormatter:
                 # 如果内容不为空，添加到结果
                 if content.strip():
                     result.append(content)
+                else:
+                    # 如果是空的列表项，跳过
+                    i += 1
+                    continue
                 
-                # 检查下一行是否是缩进的子项
-                has_sub_items = False
+                # 处理后续的子项，规范化缩进
                 j = i + 1
+                has_sub_items = False
+                
                 while j < len(lines):
                     next_line = lines[j]
+                    
+                    # 空行保持原样
                     if next_line.strip() == '':
+                        result.append(next_line)
                         j += 1
                         continue
-                    elif next_line.startswith('  ') or next_line.startswith('\t'):
-                        # 这是子项，保留原样
+                    
+                    # 检查是否是子项（以制表符或多个空格开头）
+                    if next_line.startswith('\t') or next_line.startswith('  '):
                         has_sub_items = True
-                        break
-                    else:
-                        # 这不是子项，停止检查
-                        break
-                
-                # 如果有子项，处理它们
-                if has_sub_items:
-                    j = i + 1
-                    while j < len(lines):
-                        next_line = lines[j]
-                        if next_line.strip() == '':
-                            result.append(next_line)
-                        elif next_line.startswith('  ') or next_line.startswith('\t'):
-                            result.append(next_line)
+                        # 规范化缩进并提升一个层级（减少缩进）
+                        normalized_line = self._normalize_list_indent(next_line)
+                        
+                        # 处理空的子列表项
+                        if normalized_line.strip() in ['-', '- ']:
+                            # 跳过空的子列表项
+                            j += 1
+                            continue
+                        
+                        # 提升一个层级：移除一级缩进（2个空格）
+                        if normalized_line.startswith('  '):
+                            promoted_line = normalized_line[2:]  # 移除前面的2个空格
                         else:
-                            break
+                            promoted_line = normalized_line  # 如果没有足够的缩进，保持原样
+                        
+                        result.append(promoted_line)
                         j += 1
-                    i = j - 1
+                    else:
+                        # 不是子项，停止处理
+                        break
                 
-                # 在段落后添加空行（如果下一行不是空行）
-                if i + 1 < len(lines) and lines[i + 1].strip() != '':
-                    result.append('')
+                i = j - 1
+                
+                # 只有在没有子项且下一行不是空行或另一个第一级列表项时才添加空行
+                if not has_sub_items and i + 1 < len(lines):
+                    next_line = lines[i + 1] if i + 1 < len(lines) else ''
+                    if next_line.strip() != '' and not next_line.startswith('- '):
+                        result.append('')
                     
             else:
-                # 不是第一级列表项，保持原样
-                result.append(line)
+                # 不是第一级列表项
+                if line.startswith('\t') or line.startswith('  '):
+                    # 规范化子项缩进
+                    normalized_line = self._normalize_list_indent(line)
+                    
+                    # 处理空的子列表项
+                    if normalized_line.strip() in ['-', '- ']:
+                        # 跳过空的子列表项
+                        i += 1
+                        continue
+                        
+                    result.append(normalized_line)
+                else:
+                    # 普通行保持原样
+                    result.append(line)
             
             i += 1
         
         return result
+    
+    def _normalize_list_indent(self, line: str) -> str:
+        """规范化列表项的缩进"""
+        # 计算前导空白的数量
+        stripped = line.lstrip()
+        leading_whitespace = line[:len(line) - len(stripped)]
+        
+        # 计算缩进级别：制表符按1级计算，每2个空格按1级计算
+        indent_level = 0
+        i = 0
+        while i < len(leading_whitespace):
+            char = leading_whitespace[i]
+            if char == '\t':
+                indent_level += 1
+                i += 1
+            elif char == ' ':
+                # 连续的空格按2个为一级缩进
+                space_count = 0
+                while i < len(leading_whitespace) and leading_whitespace[i] == ' ':
+                    space_count += 1
+                    i += 1
+                indent_level += space_count // 2  # 每2个空格算1级
+            else:
+                i += 1
+        
+        # 生成规范化的缩进（每级2个空格）
+        normalized_indent = '  ' * indent_level
+        
+        return normalized_indent + stripped

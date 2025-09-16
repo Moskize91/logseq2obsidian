@@ -22,11 +22,29 @@
 - `ai_workspace/research/sample_analysis.md` - 样本分析结果
 
 ### 2. 🔍 验证工作环境
-- 确认 VS Code 的 Python 解释器设置为 `./.conda/python`
-- 检查是否还有 import 错误（应该已解决）
-- 验证测试是否能正常运行
+- 确认 VS Code 的 Python 解释器设置为 `./.venv/bin/python`
+- 检查 venv 虚拟环境是否正确激活
+- 验证测试是否能正常运行 (`python test.py`)
 
-### 3. ⚡ 立即开始的任务
+### 3. 🚀 环境快速启动
+```bash
+# 如果需要重新设置环境
+bash scripts/setup.sh
+
+# 激活虚拟环境
+source .venv/bin/activate
+
+# 验证环境
+python --version  # 应该显示 Python 3.10+
+
+# 运行测试
+python test.py
+
+# 转换示例（移除顶级子弹点）
+python scripts/convert_examples.py --remove-top-level-bullets
+```
+
+### 4. ⚡ 立即开始的任务
 1. **用真实用户数据测试** (第一优先级) 
 2. **优化转换质量** (处理发现的问题)
 3. **增强命令行工具** (让普通用户易用)
@@ -39,12 +57,13 @@
 - **样本**: 已有 2 个真实 Logseq 文件可供测试
 
 ### 已完成的工作 (这次会话的成果！)
-- ✅ Python 环境配置 (conda + VS Code 集成)
+- ✅ Python 环境配置 (venv + Poetry + VS Code 集成)
 - ✅ 基础项目结构创建 (src/, tests/, .vscode/)
 - ✅ 核心模块开发完成 (解析器 + 格式化器 + 文件管理器)
 - ✅ 成功转换测试样本 (2个文件，100%成功率)
 - ✅ VS Code 导入问题修复 (Python 路径和 Pylance 配置)
 - ✅ 工作版本验证 (能实际转换 Logseq → Obsidian)
+- ✅ 环境迁移 (从 conda 迁移到 venv，命令更简洁)
 
 ### 核心挑战 (从样本分析得出)
 1. **块引用** `((uuid))` - Obsidian 无对应语法
