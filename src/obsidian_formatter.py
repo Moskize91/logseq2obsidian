@@ -11,9 +11,11 @@ from pathlib import Path
 class ObsidianFormatter:
     """Obsidian 格式转换器"""
     
-    def __init__(self):
+    def __init__(self, remove_top_level_bullets=False):
         # Obsidian 块引用计数器（用于生成唯一的块引用）
         self.block_ref_counter = 0
+        # 是否删除第一级列表符号
+        self.remove_top_level_bullets = remove_top_level_bullets
     
     def format_content(self, parsed_data: Dict) -> str:
         """将解析的 Logseq 数据转换为 Obsidian 格式"""
@@ -24,6 +26,10 @@ class ObsidianFormatter:
         for line in lines:
             formatted_line = self._process_line(line, parsed_data)
             formatted_lines.append(formatted_line)
+        
+        # 如果启用了删除第一级列表符号，进行后处理
+        if self.remove_top_level_bullets:
+            formatted_lines = self._remove_top_level_bullets(formatted_lines)
         
         return '\n'.join(formatted_lines)
     
@@ -92,28 +98,6 @@ class ObsidianFormatter:
         
         return re.sub(r'!\[([^\]]*)\]\(([^)]+)\)', replace_asset, line)
     
-    def add_frontmatter(self, content: str, metadata: Dict = None) -> str:
-        """添加 YAML frontmatter"""
-        if metadata is None:
-            metadata = {}
-        
-        frontmatter_lines = ["---"]
-        
-        # 添加基本元数据
-        if 'tags' in metadata:
-            frontmatter_lines.append(f"tags: {metadata['tags']}")
-        
-        if 'created' in metadata:
-            frontmatter_lines.append(f"created: {metadata['created']}")
-        
-        if 'logseq_source' in metadata:
-            frontmatter_lines.append(f"logseq_source: {metadata['logseq_source']}")
-        
-        frontmatter_lines.append("---")
-        frontmatter_lines.append("")  # 空行分隔
-        
-        return '\n'.join(frontmatter_lines) + content
-    
     def generate_filename(self, original_name: str) -> str:
         """生成 Obsidian 兼容的文件名"""
         # 移除或替换 Obsidian 不支持的字符
@@ -149,3 +133,63 @@ class ObsidianFormatter:
                 'block_ids_converted': original_stats['block_ids']
             }
         }
+    
+    def _remove_top_level_bullets(self, lines: list) -> list:
+        """删除第一级列表符号，转换为段落格式"""
+        result = []
+        i = 0
+        
+        while i < len(lines):
+            line = lines[i]
+            stripped = line.strip()
+            
+            # 检查是否是第一级列表项（没有前导空格的 "- "）
+            if line.startswith('- ') and not line.startswith('  '):
+                # 删除 "- " 前缀
+                content = line[2:]
+                
+                # 如果内容不为空，添加到结果
+                if content.strip():
+                    result.append(content)
+                
+                # 检查下一行是否是缩进的子项
+                has_sub_items = False
+                j = i + 1
+                while j < len(lines):
+                    next_line = lines[j]
+                    if next_line.strip() == '':
+                        j += 1
+                        continue
+                    elif next_line.startswith('  ') or next_line.startswith('\t'):
+                        # 这是子项，保留原样
+                        has_sub_items = True
+                        break
+                    else:
+                        # 这不是子项，停止检查
+                        break
+                
+                # 如果有子项，处理它们
+                if has_sub_items:
+                    j = i + 1
+                    while j < len(lines):
+                        next_line = lines[j]
+                        if next_line.strip() == '':
+                            result.append(next_line)
+                        elif next_line.startswith('  ') or next_line.startswith('\t'):
+                            result.append(next_line)
+                        else:
+                            break
+                        j += 1
+                    i = j - 1
+                
+                # 在段落后添加空行（如果下一行不是空行）
+                if i + 1 < len(lines) and lines[i + 1].strip() != '':
+                    result.append('')
+                    
+            else:
+                # 不是第一级列表项，保持原样
+                result.append(line)
+            
+            i += 1
+        
+        return result

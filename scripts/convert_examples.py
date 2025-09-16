@@ -6,6 +6,7 @@ Examples 转换脚本
 
 import sys
 import shutil
+import argparse
 from pathlib import Path
 from datetime import datetime
 
@@ -61,13 +62,13 @@ def clear_output_directory():
     print(f"创建输出目录: {OBSIDIAN_OUTPUT_DIR}")
 
 
-def convert_logseq_to_obsidian():
+def convert_logseq_to_obsidian(remove_top_level_bullets=False):
     """转换 Logseq 数据为 Obsidian 格式"""
-    print("\n开始转换...")
+    print(f"\n开始转换{'（删除第一级列表符号）' if remove_top_level_bullets else ''}...")
     
     # 初始化组件
     parser = LogseqParser()
-    formatter = ObsidianFormatter()
+    formatter = ObsidianFormatter(remove_top_level_bullets=remove_top_level_bullets)
     file_manager = FileManager(OBSIDIAN_OUTPUT_DIR, dry_run=False)
     
     conversions = []
@@ -92,14 +93,8 @@ def convert_logseq_to_obsidian():
             # 格式转换
             converted_content = formatter.format_content(parsed_data)
             
-            # 添加 frontmatter
-            metadata = {
-                'logseq_source': str(relative_path),
-                'original_file': md_file.name,
-                'converted_time': file_manager._get_timestamp(),
-                'source_directory': relative_path.parent.name if relative_path.parent.name != '.' else 'root'
-            }
-            final_content = formatter.add_frontmatter(converted_content, metadata)
+            # 直接使用转换后的内容，不添加 frontmatter
+            final_content = converted_content
             
             # 生成输出文件名（保持目录结构）
             output_filename = formatter.generate_filename(md_file.stem)
@@ -234,8 +229,16 @@ def create_conversion_summary(conversions):
 
 def main():
     """主函数"""
+    parser = argparse.ArgumentParser(description='转换 Logseq 数据为 Obsidian 格式')
+    parser.add_argument('--remove-top-level-bullets', action='store_true', 
+                       help='删除第一级列表符号，将其转换为段落格式')
+    
+    args = parser.parse_args()
+    
     print("🔄 开始 Examples 转换")
     print(f"时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    if args.remove_top_level_bullets:
+        print("🎯 启用：删除第一级列表符号")
     
     # 1. 检查源数据
     if not check_source_data():
@@ -245,7 +248,7 @@ def main():
     clear_output_directory()
     
     # 3. 转换 markdown 文件
-    conversions = convert_logseq_to_obsidian()
+    conversions = convert_logseq_to_obsidian(remove_top_level_bullets=args.remove_top_level_bullets)
     
     if not conversions:
         print("❌ 没有文件被转换")
