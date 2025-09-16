@@ -4,8 +4,9 @@ Obsidian 格式化器
 """
 
 import re
-from typing import Dict, List, Optional
+from typing import Dict
 from pathlib import Path
+from .filename_processor import FilenameProcessor
 
 
 class ObsidianFormatter:
@@ -81,11 +82,13 @@ class ObsidianFormatter:
         """转换页面链接格式"""
         def replace_link(match):
             link_text = match.group(1)
+            # 处理文件名：解码 URL 编码并替换 Obsidian 不支持的字符
+            processed_link = FilenameProcessor.process_page_link(link_text)
             # Obsidian 双链基本兼容，但需要确保文件扩展名
-            return f"[[{link_text}]]"
-        
+            return f"[[{processed_link}]]"
+
         return re.sub(r'\[\[([^\]]+)\]\]', replace_link, line)
-    
+
     def _convert_block_refs(self, line: str) -> str:
         """处理块引用 - Obsidian 没有对应语法，转换为注释"""
         def replace_block_ref(match):

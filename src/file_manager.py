@@ -6,6 +6,7 @@
 import shutil
 from pathlib import Path
 from typing import List, Dict, Optional
+from .filename_processor import FilenameProcessor
 
 
 class FileManager:
@@ -21,6 +22,9 @@ class FileManager:
     
     def write_file(self, filename: str, content: str, subfolder: str = "") -> Path:
         """写入文件"""
+        # 处理文件名：解码 URL 编码并替换 Obsidian 不支持的字符
+        processed_filename = FilenameProcessor.process_filename(filename)
+        
         # 构造完整路径
         if subfolder:
             target_dir = self.output_dir / subfolder
@@ -29,21 +33,25 @@ class FileManager:
         else:
             target_dir = self.output_dir
         
-        file_path = target_dir / filename
+        file_path = target_dir / processed_filename
         
         if self.dry_run:
             print(f"[DRY RUN] 会写入文件: {file_path}")
+            if processed_filename != filename:
+                print(f"[DRY RUN] 文件名转换: {filename} -> {processed_filename}")
             print(f"[DRY RUN] 内容长度: {len(content)} 字符")
             return file_path
         
         try:
             with open(file_path, 'w', encoding='utf-8') as f:
                 f.write(content)
+            if processed_filename != filename:
+                print(f"文件名转换: {filename} -> {processed_filename}")
             print(f"已写入文件: {file_path}")
             return file_path
             
         except Exception as e:
-            raise Exception(f"写入文件 {file_path} 时出错: {e}")
+            raise ValueError(f"写入文件 {file_path} 时出错: {e}") from e
     
     def copy_assets(self, source_paths: List[Path], target_subdir: str = "attachments") -> List[Path]:
         """复制资源文件"""
