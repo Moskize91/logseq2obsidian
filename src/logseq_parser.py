@@ -45,8 +45,8 @@ class LogseqParser:
         self.block_ref_pattern = re.compile(r'\(\(([^)]+)\)\)')
         self.block_id_pattern = re.compile(r'id:: ([a-f0-9-]+)')
         self.asset_pattern = re.compile(r'!\[([^\]]*)\]\(([^)]+)\)')
-        # Meta 属性模式
-        self.meta_pattern = re.compile(r'^(\w+(?:-\w+)*)::\s*(.+)$')
+        # Meta 属性模式（支持前面有列表标记）
+        self.meta_pattern = re.compile(r'^(?:[-*]\s+)?(\w+(?:-\w+)*)::\s*(.+)$')
         
     def parse_file(self, file_path: Path) -> Dict:
         """解析单个 Logseq 文件"""
@@ -68,20 +68,33 @@ class LogseqParser:
         meta_properties = []
         
         # First pass: extract meta properties from the beginning of the file
+        # Meta properties can be interspersed with other lines (like tags) at the beginning
         meta_line_count = 0
+        
         for i, line in enumerate(lines):
             stripped_line = line.strip()
+            
+            # Skip empty lines
             if not stripped_line:
                 meta_line_count = i + 1
                 continue
-            if self.meta_pattern.match(stripped_line):
-                meta_prop = self._extract_meta_property(stripped_line, i + 1)
+                
+            # Check if this is a meta property
+            if self.meta_pattern.match(line):
+                meta_prop = self._extract_meta_property(line, i + 1)
                 if meta_prop:
                     meta_properties.append(meta_prop)
                 meta_line_count = i + 1
-            else:
-                # Stop when we hit the first non-meta, non-empty line
-                break
+                continue
+            
+            # Check if this looks like a simple tag line or bullet point
+            # Allow lines like "- #tag" to continue scanning for meta properties
+            if re.match(r'^[-*]\s+#\w+\s*$', line) or stripped_line == '-':
+                meta_line_count = i + 1
+                continue
+                
+            # If we get here, we've hit actual content, stop scanning for meta properties
+            break
         
         # Second pass: parse blocks and references starting after meta properties
         for line_num in range(meta_line_count + 1, len(lines) + 1):
@@ -166,7 +179,7 @@ class LogseqParser:
     
     def _extract_meta_property(self, line: str, line_num: int) -> Optional[LogseqMetaProperty]:
         """从行中提取 meta 属性"""
-        match = self.meta_pattern.match(line.strip())
+        match = self.meta_pattern.match(line)  # 使用原始行而不是 strip()
         if match:
             key = match.group(1)
             raw_value = match.group(2)

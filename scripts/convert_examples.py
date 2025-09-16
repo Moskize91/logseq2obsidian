@@ -62,13 +62,20 @@ def clear_output_directory():
     print(f"创建输出目录: {OBSIDIAN_OUTPUT_DIR}")
 
 
-def convert_logseq_to_obsidian(remove_top_level_bullets=False):
+def convert_logseq_to_obsidian(remove_top_level_bullets=False, category_tag=None, category_folder=None):
     """转换 Logseq 数据为 Obsidian 格式"""
     print(f"\n开始转换{'（删除第一级列表符号）' if remove_top_level_bullets else ''}...")
+    if category_tag and category_folder:
+        print(f"🏷️  分类标签: #{category_tag} -> {category_folder}/ 文件夹")
     
     # 初始化组件
     parser = LogseqParser()
-    formatter = ObsidianFormatter(remove_top_level_bullets=remove_top_level_bullets)
+    formatter = ObsidianFormatter(
+        remove_top_level_bullets=remove_top_level_bullets,
+        category_tag=category_tag,
+        category_folder=category_folder,
+        input_assets_dir=LOGSEQ_DATA_DIR / 'assets'
+    )
     file_manager = FileManager(OBSIDIAN_OUTPUT_DIR, dry_run=False)
     
     conversions = []
@@ -99,9 +106,23 @@ def convert_logseq_to_obsidian(remove_top_level_bullets=False):
             # 生成输出文件名（保持目录结构）
             output_filename = formatter.generate_filename(md_file.stem)
             
-            # 如果文件在子目录中，保持子目录结构
-            if relative_path.parent.name != '.':
+            # 检测分类文件夹
+            detected_folder = formatter.detect_category_folder(parsed_data)
+            
+            # 决定最终的子文件夹
+            if detected_folder:
+                # 使用检测到的分类文件夹
+                subfolder = detected_folder
+                print(f"   🏷️  检测到 #{formatter.category_tag} 标签，归类到 {detected_folder}/ 文件夹")
+            elif relative_path.parent.name != '.':
+                # 如果文件在子目录中，保持子目录结构
                 subfolder = relative_path.parent.name
+            else:
+                # 默认不使用子文件夹（会进入 pages）
+                subfolder = ""
+            
+            # 写入文件
+            if subfolder:
                 file_manager.write_file(output_filename, final_content, subfolder)
             else:
                 file_manager.write_file(output_filename, final_content)
@@ -232,13 +253,24 @@ def main():
     parser = argparse.ArgumentParser(description='转换 Logseq 数据为 Obsidian 格式')
     parser.add_argument('--remove-top-level-bullets', action='store_true', 
                        help='删除第一级列表符号，将其转换为段落格式')
+    parser.add_argument('--category-tag', type=str, 
+                       help='分类标签名称（如 wiki），用于自动将带有该标签的文件归类到指定文件夹')
+    parser.add_argument('--category-folder', type=str,
+                       help='分类文件夹名称（如 wiki），与 --category-tag 一起使用')
     
     args = parser.parse_args()
+    
+    # 验证分类配置
+    if (args.category_tag and not args.category_folder) or (args.category_folder and not args.category_tag):
+        print("❌ --category-tag 和 --category-folder 必须同时指定")
+        return False
     
     print("🔄 开始 Examples 转换")
     print(f"时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     if args.remove_top_level_bullets:
         print("🎯 启用：删除第一级列表符号")
+    if args.category_tag:
+        print(f"🏷️  分类功能：#{args.category_tag} → {args.category_folder}/ 文件夹")
     
     # 1. 检查源数据
     if not check_source_data():
@@ -248,7 +280,11 @@ def main():
     clear_output_directory()
     
     # 3. 转换 markdown 文件
-    conversions = convert_logseq_to_obsidian(remove_top_level_bullets=args.remove_top_level_bullets)
+    conversions = convert_logseq_to_obsidian(
+        remove_top_level_bullets=args.remove_top_level_bullets,
+        category_tag=args.category_tag,
+        category_folder=args.category_folder
+    )
     
     if not conversions:
         print("❌ 没有文件被转换")

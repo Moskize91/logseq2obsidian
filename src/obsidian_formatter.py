@@ -12,11 +12,16 @@ from .filename_processor import FilenameProcessor
 class ObsidianFormatter:
     """Obsidian 格式转换器"""
     
-    def __init__(self, remove_top_level_bullets=False):
+    def __init__(self, remove_top_level_bullets=False, category_tag=None, category_folder=None, input_assets_dir=None):
         # Obsidian 块引用计数器（用于生成唯一的块引用）
         self.block_ref_counter = 0
         # 是否删除第一级列表符号
         self.remove_top_level_bullets = remove_top_level_bullets
+        # 分类标签配置
+        self.category_tag = category_tag  # 例如 "wiki"
+        self.category_folder = category_folder  # 例如 "wiki"
+        # 输入assets目录路径（用于检查文件是否存在）
+        self.input_assets_dir = input_assets_dir
     
     def format_content(self, parsed_data: Dict) -> str:
         """将解析的 Logseq 数据转换为 Obsidian 格式"""
@@ -27,6 +32,11 @@ class ObsidianFormatter:
         
         # 移除原始内容中的 meta 属性行
         filtered_lines = self._filter_meta_lines(lines, parsed_data.get('meta_properties', []))
+        
+        # 如果文件被归类到特定文件夹，移除分类标签行
+        category_folder = self.detect_category_folder(parsed_data)
+        if category_folder:
+            filtered_lines = self._remove_category_tag_lines(filtered_lines)
         
         # 处理每一行
         formatted_lines = []
@@ -117,9 +127,16 @@ class ObsidianFormatter:
             
             # 处理相对路径
             if file_path.startswith('../assets/'):
-                # 转换为 Obsidian 附件路径
-                filename = Path(file_path).name
-                new_path = f"attachments/{filename}"
+                # 保持相对路径格式，Obsidian 支持从 pages/ 到 assets/ 的相对引用
+                new_path = file_path
+                
+                # 检查文件是否存在（如果有输入路径信息）
+                if hasattr(self, 'input_assets_dir'):
+                    # 构建实际文件路径进行检查
+                    actual_file_path = self.input_assets_dir / file_path.replace('../assets/', '')
+                    if not actual_file_path.exists():
+                        # 文件不存在，添加注释
+                        return f"![{alt_text}]({new_path}) <!-- ⚠️ 文件不存在: {file_path} -->"
             else:
                 new_path = file_path
             
@@ -374,3 +391,166 @@ class ObsidianFormatter:
             filtered_lines.append(line)
         
         return filtered_lines
+    
+    def detect_category_folder(self, parsed_data: Dict) -> str:
+        """检测文件应该归类到哪个文件夹
+        
+        根据配置的分类标签，检测文件开头是否包含分类标签，
+        决定文件应该归类到哪个文件夹
+        
+        Args:
+            parsed_data: 解析后的文件数据
+            
+        Returns:
+            文件夹名称，如果没有特殊分类则返回空字符串（默认 pages）
+        """
+        # 如果没有配置分类标签，直接返回默认
+        if not self.category_tag or not self.category_folder:
+            return ""
+        
+        lines = parsed_data['content'].split('\n')
+        meta_properties = parsed_data.get('meta_properties', [])
+        
+        # 获取实际内容行（跳过 meta 属性和空行）
+        content_lines = self._get_actual_content_lines(lines, meta_properties)
+        
+        if not content_lines:
+            return ""
+        
+        # 检查第一行实际内容是否以分类标签开头
+        first_content_line = content_lines[0].strip()
+        category_tag_pattern = f"#{self.category_tag}"
+        
+        # 移除 Logseq 列表标记（- 开头），获取实际内容
+        content_without_bullets = self._remove_logseq_bullets(first_content_line)
+        
+        # 检查标签是否在实际内容的开头
+        if content_without_bullets.startswith(category_tag_pattern):
+            # 确保这是一个完整的标签（后面是空格、行尾或其他标签）
+            after_tag = content_without_bullets[len(category_tag_pattern):]
+            if not after_tag or after_tag[0].isspace() or after_tag[0] == '#':
+                return self.category_folder
+        
+        return ""
+    
+    def _remove_logseq_bullets(self, line: str) -> str:
+        """移除 Logseq 列表标记，获取实际内容
+        
+        例如：
+        "- #wiki 内容" -> "#wiki 内容"
+        "  - #wiki 内容" -> "#wiki 内容"
+        "#wiki 内容" -> "#wiki 内容"
+        """
+        stripped = line.strip()
+        
+        # 移除列表标记（- 或 * 后面跟空格）
+        if stripped.startswith('- '):
+            return stripped[2:].strip()
+        elif stripped.startswith('* '):
+            return stripped[2:].strip()
+        elif stripped == '-' or stripped == '*':
+            return ""
+        
+        return stripped
+    
+    def _get_actual_content_lines(self, lines, meta_properties):
+        """获取实际内容行（排除 meta 属性和开头的空行）"""
+        # 获取所有 meta 属性的行号
+        meta_line_numbers = {prop.line_number for prop in meta_properties} if meta_properties else set()
+        
+        actual_content_lines = []
+        
+        for i, line in enumerate(lines, 1):
+            # 跳过 meta 属性行
+            if i in meta_line_numbers:
+                continue
+            
+            # 跳过空行和只有空格的行
+            if not line.strip():
+                continue
+            
+            # 这是实际内容行
+            actual_content_lines.append(line)
+        
+        return actual_content_lines
+    
+    def _remove_category_tag_lines(self, lines):
+        """移除包含分类标签的行
+        
+        如果整行只有分类标签（如 "- #wiki"），则删除整行
+        如果行中有其他内容，则只删除标签部分
+        
+        Args:
+            lines: 文件行列表
+            
+        Returns:
+            处理后的行列表
+        """
+        if not self.category_tag:
+            return lines
+        
+        category_tag_pattern = f"#{self.category_tag}"
+        result_lines = []
+        
+        for line in lines:
+            # 移除 Logseq 列表标记，获取实际内容
+            content_without_bullets = self._remove_logseq_bullets(line.strip())
+            
+            # 检查是否包含分类标签
+            if category_tag_pattern in content_without_bullets:
+                # 检查是否整行只有分类标签
+                if content_without_bullets.strip() == category_tag_pattern:
+                    # 整行只有标签，删除整行
+                    continue
+                elif content_without_bullets.startswith(category_tag_pattern):
+                    # 标签在开头，检查后面是否只有空格或其他标签
+                    after_tag = content_without_bullets[len(category_tag_pattern):]
+                    if not after_tag.strip() or after_tag.strip().startswith('#'):
+                        # 整行只有这个标签（可能还有其他标签），删除整行
+                        continue
+                    else:
+                        # 有其他内容，只删除标签部分
+                        # 保持原行的格式（列表标记等），只替换内容
+                        original_prefix = line[:len(line) - len(line.lstrip())]  # 获取前导空格/制表符
+                        list_marker = ""
+                        
+                        # 检查是否有列表标记
+                        stripped_line = line.strip()
+                        if stripped_line.startswith('- '):
+                            list_marker = "- "
+                        elif stripped_line.startswith('* '):
+                            list_marker = "* "
+                        
+                        # 移除标签后的内容
+                        remaining_content = after_tag.strip()
+                        if remaining_content:
+                            new_line = original_prefix + list_marker + remaining_content
+                        else:
+                            # 删除标签后没有内容了，删除整行
+                            continue
+                        
+                        result_lines.append(new_line)
+                else:
+                    # 标签不在开头，替换标签部分
+                    new_content = content_without_bullets.replace(category_tag_pattern, '').strip()
+                    if new_content:
+                        # 保持原行格式
+                        original_prefix = line[:len(line) - len(line.lstrip())]
+                        list_marker = ""
+                        
+                        stripped_line = line.strip()
+                        if stripped_line.startswith('- '):
+                            list_marker = "- "
+                        elif stripped_line.startswith('* '):
+                            list_marker = "* "
+                        
+                        new_line = original_prefix + list_marker + new_content
+                        result_lines.append(new_line)
+                    else:
+                        # 删除标签后没有内容了，删除整行
+                        continue
+            else:
+                # 不包含分类标签，保留原行
+                result_lines.append(line)
+        
+        return result_lines
