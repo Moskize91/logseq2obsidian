@@ -253,13 +253,16 @@ class ObsidianFormatter:
         # 2. 处理页面链接 [[]]  
         processed_line = self._convert_page_links(processed_line)
         
-        # 3. 处理块引用 (()) - 转换为注释或删除
+        # 3. 处理块嵌入语法 {{embed ((xxx))}} - 转换为 Obsidian 嵌入格式
+        processed_line = self._convert_embed_syntax(processed_line)
+        
+        # 4. 处理块引用 (()) - 转换为注释或删除
         processed_line = self._convert_block_refs(processed_line)
         
-        # 4. 处理块 ID - 转换为 Obsidian 块引用格式
+        # 5. 处理块 ID - 转换为 Obsidian 块引用格式
         processed_line = self._convert_block_ids(processed_line)
         
-        # 5. 处理资源文件路径
+        # 6. 处理资源文件路径
         processed_line = self._convert_asset_paths(processed_line)
         
         return processed_line
@@ -312,6 +315,31 @@ class ObsidianFormatter:
             return f"[[{processed_link}]]"
 
         return re.sub(r'\[\[([^\]]+)\]\]', replace_link, line)
+
+    def _convert_embed_syntax(self, line: str) -> str:
+        """处理 LogSeq 块嵌入语法 {{embed ((xxx))}} 转换为 Obsidian 嵌入格式"""
+        def replace_embed(match):
+            block_uuid = match.group(1)
+            
+            # 查找块UUID映射
+            if block_uuid in self.block_uuid_map:
+                target_filename, block_id = self.block_uuid_map[block_uuid]
+                
+                # 使用嵌入格式 ![[]] 来实现块嵌入
+                if target_filename == self.current_filename:
+                    # 同文件内的块嵌入
+                    return f"![[#^{block_id}]]"
+                else:
+                    # 跨文件的块嵌入
+                    # 处理文件名：移除.md扩展名
+                    clean_filename = target_filename.replace('.md', '') if target_filename.endswith('.md') else target_filename
+                    return f"![[{clean_filename}#^{block_id}]]"
+            else:
+                # 找不到对应的映射，保留为注释以便调试
+                return f"<!-- Block Embed (未找到): {block_uuid} -->"
+        
+        # 匹配 {{embed ((xxx))}} 格式
+        return re.sub(r'\{\{embed\s*\(\(([^)]+)\)\)\}\}', replace_embed, line)
 
     def _convert_block_refs(self, line: str) -> str:
         """处理块引用 - 转换为 Obsidian 块链接或 PDF 注释引用格式"""

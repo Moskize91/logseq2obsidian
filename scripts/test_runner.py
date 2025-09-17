@@ -16,7 +16,7 @@ def run_command(command, description):
     print(f"{'='*60}")
     
     try:
-        result = subprocess.run(command, shell=True, cwd=Path(__file__).parent, 
+        result = subprocess.run(command, shell=True, cwd=Path(__file__).parent.parent, 
                               capture_output=True, text=True)
         
         if result.stdout:
@@ -47,6 +47,7 @@ def run_all_tests():
         ("tests/test_category_detection_comprehensive.py", "分类检测综合测试"),
         ("tests/test_formatting_comprehensive.py", "格式优化综合测试"),
         ("tests/test_page_links_comprehensive.py", "页面链接处理综合测试"),
+        ("tests/test_embed_comprehensive.py", "Embed语法转换综合测试"),
     ]
     
     passed = 0
@@ -101,7 +102,7 @@ def list_available_tests():
     print("📋 可用的测试文件:")
     print("-" * 40)
     
-    test_dir = Path("tests")
+    test_dir = Path(__file__).parent.parent / "tests"
     test_files = sorted(test_dir.glob("test_*.py"))
     
     for i, test_file in enumerate(test_files, 1):

@@ -6,6 +6,7 @@
 
 import unittest
 import sys
+import re
 from pathlib import Path
 
 # 添加项目根目录到 Python 路径
@@ -19,6 +20,11 @@ class TestBlockIdProcessing(unittest.TestCase):
     
     def setUp(self):
         self.formatter = ObsidianFormatter()
+    
+    def count_block_ids(self, text):
+        """计算文本中的块ID数量（只计算行尾的块ID，不包括引用）"""
+        lines = text.split('\n')
+        return len([line for line in lines if re.search(r'\^block\d+$', line.strip())])
     
     def test_unreferenced_block_id_removal(self):
         """测试无引用的块ID会被删除"""
@@ -69,9 +75,9 @@ id:: xyz789-uvw012''',
         # 验证：应该有一个块 ID（被引用的那个）
         self.assertIn("^block", result, "有引用的块 ID 应该被保留")
         
-        # 统计实际的块 ID 行
-        block_lines = [line for line in result.split('\n') if line.strip().startswith('^block')]
-        self.assertEqual(len(block_lines), 1, "只有被引用的块 ID 应该被保留")
+        # 统计实际的块 ID 行（现在块ID附加在内容行末尾）
+        # 检查以 ^block 结尾的行，而不是包含 ^block 的行（避免误计算块引用）
+        self.assertEqual(self.count_block_ids(result), 1, "只有被引用的块 ID 应该被保留")
         
         # 验证被引用的UUID被正确识别
         self.assertIn("abc123-def456", self.formatter.referenced_uuids, 
@@ -95,8 +101,8 @@ id:: abc123-def456
         result = self.formatter.format_content(test_data, "test3.md")
         
         # 验证：只有一个块ID，但UUID被正确识别
-        block_lines = [line for line in result.split('\n') if line.strip().startswith('^block')]
-        self.assertEqual(len(block_lines), 1, "同一个块多次引用只应该有一个块ID")
+        # 检查以 ^block 结尾的行，而不是包含 ^block 的行
+        self.assertEqual(self.count_block_ids(result), 1, "同一个块多次引用只应该有一个块ID")
         self.assertIn("abc123-def456", self.formatter.referenced_uuids, 
                      "多次引用的UUID应该被识别")
     
@@ -120,8 +126,8 @@ id:: uuid-3
         result = self.formatter.format_content(test_data, "test4.md")
         
         # 验证：应该有两个块ID（被引用的那些）
-        block_lines = [line for line in result.split('\n') if line.strip().startswith('^block')]
-        self.assertEqual(len(block_lines), 2, "应该有两个被引用的块ID")
+        # 检查以 ^block 结尾的行，而不是包含 ^block 的行
+        self.assertEqual(self.count_block_ids(result), 2, "应该有两个被引用的块ID")
         
         # 验证引用识别正确
         self.assertIn("uuid-1", self.formatter.referenced_uuids)
@@ -147,8 +153,8 @@ id:: simple''',
         result = self.formatter.format_content(test_data, "test5.md")
         
         # 验证：所有不同格式的块ID都被正确处理
-        block_lines = [line for line in result.split('\n') if line.strip().startswith('^block')]
-        self.assertEqual(len(block_lines), 3, "所有格式的块ID都应该被保留")
+        # 检查以 ^block 结尾的行，而不是包含 ^block 的行
+        self.assertEqual(self.count_block_ids(result), 3, "所有格式的块ID都应该被保留")
         
         # 验证所有UUID都被识别
         self.assertEqual(len(self.formatter.referenced_uuids), 3, 
