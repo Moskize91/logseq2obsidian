@@ -116,7 +116,7 @@ class ObsidianFormatter:
                 
                 # 解析 PDF 名称
                 pdf_name = edn_file.stem  # 去掉 .edn 扩展名
-                pdf_path = f"../assets/{pdf_name}.pdf"
+                pdf_path = f"../attachments/{pdf_name}.pdf"
                 
                 # 查找对应的截图目录
                 screenshot_dir = assets_dir / pdf_name
@@ -138,7 +138,7 @@ class ObsidianFormatter:
                         screenshot_files = list(screenshot_dir.glob(screenshot_pattern))
                         if screenshot_files:
                             # 使用相对路径
-                            screenshot_path = f"assets/{pdf_name}/{screenshot_files[0].name}"
+                            screenshot_path = f"attachments/{pdf_name}/{screenshot_files[0].name}"
                     
                     # 更新或创建高亮映射
                     coordinates_data = {
@@ -184,10 +184,13 @@ class ObsidianFormatter:
                 # 存储映射：UUID -> (文件名, 块ID)
                 self.block_uuid_map[uuid] = (filename, block_id)
     
-    def format_content(self, parsed_data: Dict, filename: str = "") -> str:
+    def format_content(self, parsed_data: Dict, filename: str = "", target_folder: str = "") -> str:
         """将解析的 Logseq 数据转换为 Obsidian 格式"""
         if filename:
             self.current_filename = filename
+        
+        # 保存目标文件夹信息，用于正确处理资源路径
+        self.current_target_folder = target_folder
             
         lines = parsed_data['content'].split('\n')
         
@@ -311,8 +314,25 @@ class ObsidianFormatter:
                 
                 # 转换为 Obsidian 的 PDF 注释格式
                 if page:
-                    # 构建基础 PDF 路径（移除 ../ 前缀以适配 Obsidian 链接格式）
-                    clean_pdf_path = pdf_path.replace('../assets/', '')
+                    # 首先转换路径格式：../assets/ → ../attachments/ 或 attachments/
+                    target_folder = getattr(self, 'current_target_folder', '')
+                    if pdf_path.startswith('../assets/'):
+                        if target_folder:
+                            # 文件在子文件夹中，需要 ../attachments/
+                            converted_pdf_path = pdf_path.replace('../assets/', '../attachments/')
+                        else:
+                            # 文件在根目录，直接使用 attachments/
+                            converted_pdf_path = pdf_path.replace('../assets/', 'attachments/')
+                    else:
+                        converted_pdf_path = pdf_path
+                    
+                    # 构建基础 PDF 路径（移除相对路径前缀以适配 Obsidian 链接格式）
+                    if converted_pdf_path.startswith('../attachments/'):
+                        clean_pdf_path = converted_pdf_path.replace('../attachments/', '')
+                    elif converted_pdf_path.startswith('attachments/'):
+                        clean_pdf_path = converted_pdf_path.replace('attachments/', '')
+                    else:
+                        clean_pdf_path = converted_pdf_path
                     
                     # 如果有坐标信息，使用 Obsidian 的 selection 格式
                     if coordinates:
@@ -349,7 +369,7 @@ class ObsidianFormatter:
                             result = f"[[{pdf_link}|页面 {page}]]"
                     else:
                         # 没有坐标信息，使用标准页面链接
-                        result = f"[{link_text}]({pdf_path}#page={page})"
+                        result = f"[{link_text}]({converted_pdf_path}#page={page})"
                     
                     # 如果有截图，添加截图引用
                     if screenshot_path:
@@ -361,7 +381,16 @@ class ObsidianFormatter:
                     
                     return result
                 else:
-                    return f"[{link_text}]({pdf_path})"
+                    # 对于没有页面信息的情况，也需要转换路径
+                    target_folder = getattr(self, 'current_target_folder', '')
+                    if pdf_path.startswith('../assets/'):
+                        if target_folder:
+                            converted_pdf_path = pdf_path.replace('../assets/', '../attachments/')
+                        else:
+                            converted_pdf_path = pdf_path.replace('../assets/', 'attachments/')
+                    else:
+                        converted_pdf_path = pdf_path
+                    return f"[{link_text}]({converted_pdf_path})"
             
             # 查找对应的块映射
             elif block_uuid in self.block_uuid_map:
@@ -406,10 +435,17 @@ class ObsidianFormatter:
             alt_text = match.group(1)
             file_path = match.group(2)
             
-            # 处理相对路径
+            # 处理相对路径 - 扁平化结构
             if file_path.startswith('../assets/'):
-                # 保持相对路径格式，Obsidian 支持从 pages/ 到 assets/ 的相对引用
-                new_path = file_path
+                # 根据目标文件夹决定正确的相对路径
+                target_folder = getattr(self, 'current_target_folder', '')
+                
+                if target_folder:
+                    # 文件在子文件夹中，需要 ../attachments/
+                    new_path = file_path.replace('../assets/', '../attachments/')
+                else:
+                    # 文件在根目录，直接使用 attachments/
+                    new_path = file_path.replace('../assets/', 'attachments/')
                 
                 # 暂时禁用文件存在性检查，因为它会破坏Markdown格式
                 # # 检查文件是否存在（如果有输入路径信息）

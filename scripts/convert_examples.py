@@ -121,29 +121,28 @@ def convert_logseq_to_obsidian(remove_top_level_bullets=False, category_tag=None
             # 生成输出文件名
             output_filename = formatter.generate_filename(md_file.stem)
             
-            # 格式转换（现在包含正确的块引用）
-            converted_content = formatter.format_content(parsed_data, output_filename)
-            
-            # 直接使用转换后的内容，不添加 frontmatter
-            final_content = converted_content
-            
-            # 生成输出文件名（保持目录结构）
-            output_filename = formatter.generate_filename(md_file.stem)
-            
             # 检测分类文件夹
             detected_folder = formatter.detect_category_folder(parsed_data)
             
-            # 决定最终的子文件夹
-            if detected_folder:
-                # 使用检测到的分类文件夹
-                subfolder = detected_folder
-                print(f"   🏷️  检测到 #{formatter.category_tag} 标签，归类到 {detected_folder}/ 文件夹")
-            elif relative_path.parent.name != '.':
-                # 如果文件在子目录中，保持子目录结构
-                subfolder = relative_path.parent.name
+            # 决定最终的子文件夹 - 扁平化逻辑
+            if relative_path.parent.name == 'journals':
+                # journals 文件夹 -> Daily Notes
+                subfolder = "Daily Notes"
+                print("   📅 日记文件，归类到 Daily Notes/ 文件夹")
+            elif detected_folder:
+                # 使用检测到的分类文件夹（如 wiki -> Wiki）
+                subfolder = detected_folder.title()  # 首字母大写
+                print(f"   🏷️  检测到 #{formatter.category_tag} 标签，归类到 {subfolder}/ 文件夹")
             else:
-                # 默认不使用子文件夹（会进入 pages）
+                # 其他文件直接放在根目录（扁平化）
                 subfolder = ""
+                print("   📄 主要笔记，放在根目录")
+            
+            # 格式转换（传递目标文件夹信息以正确处理资源路径）
+            converted_content = formatter.format_content(parsed_data, output_filename, subfolder)
+            
+            # 直接使用转换后的内容，不添加 frontmatter
+            final_content = converted_content
             
             # 写入文件
             if subfolder:
@@ -184,7 +183,7 @@ def convert_logseq_to_obsidian(remove_top_level_bullets=False, category_tag=None
 def copy_assets():
     """复制资源文件"""
     assets_source = LOGSEQ_DATA_DIR / "assets"
-    assets_target = OBSIDIAN_OUTPUT_DIR / "assets"
+    assets_target = OBSIDIAN_OUTPUT_DIR / "attachments"  # 使用 attachments 而不是 assets
     
     if not assets_source.exists():
         print("\n📁 没有找到 assets 目录，跳过资源复制")
@@ -213,8 +212,12 @@ def copy_assets():
 
 
 def create_conversion_summary(conversions):
-    """创建转换总结"""
-    summary_path = OBSIDIAN_OUTPUT_DIR / "conversion_summary.md"
+    """生成转换摘要"""
+    # 创建转换报告文件夹
+    reports_dir = OBSIDIAN_OUTPUT_DIR / "conversion-reports"
+    reports_dir.mkdir(exist_ok=True)
+    
+    summary_path = reports_dir / "conversion_summary.md"
     
     successful = len([c for c in conversions if c.get('success', False)])
     total = len(conversions)
