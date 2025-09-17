@@ -256,6 +256,9 @@ class ObsidianFormatter:
         # 3. 处理块嵌入语法 {{embed ((xxx))}} - 转换为 Obsidian 嵌入格式
         processed_line = self._convert_embed_syntax(processed_line)
         
+        # 3.5. 处理视频嵌入语法 {{youtube}}, {{bilibili}}, {{youtube-timestamp}} - 转换为 HTML iframe 或链接
+        processed_line = self._convert_video_embeds(processed_line)
+        
         # 4. 处理块引用 (()) - 转换为注释或删除
         processed_line = self._convert_block_refs(processed_line)
         
@@ -340,6 +343,67 @@ class ObsidianFormatter:
         
         # 匹配 {{embed ((xxx))}} 格式
         return re.sub(r'\{\{embed\s*\(\(([^)]+)\)\)\}\}', replace_embed, line)
+
+    def _convert_video_embeds(self, line: str) -> str:
+        """处理 LogSeq 视频嵌入语法转换为 Obsidian 兼容格式
+        
+        支持的格式:
+        - {{youtube VIDEO_ID}} -> ![](https://youtu.be/VIDEO_ID) - 构建完整YouTube URL
+        - {{youtube https://youtu.be/VIDEO_ID}} -> ![](https://youtu.be/VIDEO_ID) - 保留完整URL
+        - {{video https://youtu.be/VIDEO_ID}} -> ![](https://youtu.be/VIDEO_ID) - 保留完整URL  
+        - {{bilibili BV_ID}} -> [Bilibili视频: BV_ID](BV_ID) - 转换为链接格式
+        - {{youtube-timestamp TIME}} -> 保持原样，让用户手动处理
+        
+        根据Reddit研究，Obsidian原生支持 ![](youtube-url) 语法来嵌入视频
+        """
+        
+        def normalize_youtube_url(content):
+            """将各种YouTube格式标准化为youtu.be URL格式"""
+            content = content.strip()
+            
+            # 如果已经是完整的YouTube URL，直接返回
+            if content.startswith('http'):
+                return content
+            elif 'youtu.be/' in content:
+                return content if content.startswith('http') else f'https://{content}'
+            elif 'youtube.com/watch' in content:
+                return content if content.startswith('http') else f'https://{content}'
+            else:
+                # 假设是直接的视频ID，构建youtu.be URL
+                return f'https://youtu.be/{content}'
+        
+        def replace_youtube(match):
+            content = match.group(1).strip()
+            youtube_url = normalize_youtube_url(content)
+            # 使用Reddit推荐的 Obsidian 原生支持格式
+            return f'![]({youtube_url})'
+        
+        def replace_video(match):
+            content = match.group(1).strip()
+            # 对于 {{video}} 格式，直接保留URL
+            return f'![]({content})'
+        
+        def replace_bilibili(match):
+            bv_id = match.group(1).strip()
+            # 转换为链接格式，不处理 URL，保留原始 BV_ID
+            return f'[Bilibili视频: {bv_id}]({bv_id})'
+        
+        # 处理各种视频嵌入格式
+        processed_line = line
+        
+        # 1. 通用视频嵌入 {{video URL}} - 直接保留URL
+        processed_line = re.sub(r'\{\{video\s+([^\}]+)\}\}', replace_video, processed_line)
+        
+        # 2. YouTube 嵌入 {{youtube VIDEO_ID或URL}}
+        processed_line = re.sub(r'\{\{youtube\s+([^\}]+)\}\}', replace_youtube, processed_line)
+        
+        # 3. Bilibili 嵌入 {{bilibili BV_ID}}
+        processed_line = re.sub(r'\{\{bilibili\s+([^\}]+)\}\}', replace_bilibili, processed_line)
+        
+        # 4. YouTube 时间戳 {{youtube-timestamp TIME}} - 保持原样不处理
+        # 不做任何转换，让用户自己处理
+        
+        return processed_line
 
     def _convert_block_refs(self, line: str) -> str:
         """处理块引用 - 转换为 Obsidian 块链接或 PDF 注释引用格式"""
