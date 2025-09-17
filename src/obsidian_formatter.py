@@ -25,6 +25,8 @@ class ObsidianFormatter:
         self.input_assets_dir = input_assets_dir
         # 块引用映射：UUID -> (文件名, 块ID)
         self.block_uuid_map = {}
+        # 记录被引用的 UUID 集合
+        self.referenced_uuids = set()
         # PDF 高亮映射：UUID -> (PDF路径, 页码, 高亮文本)
         self.pdf_highlight_map = {}
         # 当前正在处理的文件名
@@ -171,21 +173,34 @@ class ObsidianFormatter:
                 print(f"   ⚠️  解析 .edn 文件失败: {edn_file.name}: {e}")
                 continue
 
+    def collect_referenced_uuids(self, parsed_data: Dict):
+        """第一阶段：收集所有被引用的 UUID"""
+        content = parsed_data['content']
+        
+        # 查找所有的块引用 ((uuid))
+        block_ref_pattern = r'\(\(([a-zA-Z0-9-]+)\)\)'
+        matches = re.findall(block_ref_pattern, content)
+        
+        for uuid in matches:
+            self.referenced_uuids.add(uuid)
+    
     def collect_block_mappings(self, filename: str, parsed_data: Dict):
-        """第一阶段：收集文件中的所有块ID映射"""
+        """第二阶段：只为被引用的块分配 ID"""
         lines = parsed_data['content'].split('\n')
         self.current_filename = filename
         
         for line in lines:
-            # 查找 id:: uuid 格式的块ID定义
-            id_match = re.search(r'id:: ([a-f0-9-]+)', line)
+            # 查找 id:: uuid 格式的块ID定义（允许缩进）
+            id_match = re.search(r'^\s*id:: ([a-zA-Z0-9-]+)', line)
             if id_match:
                 uuid = id_match.group(1)
-                # 生成对应的块ID
-                self.block_ref_counter += 1
-                block_id = f"block{self.block_ref_counter}"
-                # 存储映射：UUID -> (文件名, 块ID)
-                self.block_uuid_map[uuid] = (filename, block_id)
+                # 只为被引用的块分配 ID
+                if uuid in self.referenced_uuids:
+                    # 生成对应的块ID
+                    self.block_ref_counter += 1
+                    block_id = f"block{self.block_ref_counter}"
+                    # 存储映射：UUID -> (文件名, 块ID)
+                    self.block_uuid_map[uuid] = (filename, block_id)
     
     def format_content(self, parsed_data: Dict, filename: str = "", target_folder: str = "") -> str:
         """将解析的 Logseq 数据转换为 Obsidian 格式"""
@@ -416,22 +431,22 @@ class ObsidianFormatter:
         return re.sub(r'\(\(([^)]+)\)\)', replace_block_ref, line)
     
     def _convert_block_ids(self, line: str) -> str:
-        """转换块 ID 为 Obsidian 块引用格式"""
-        def replace_block_id(match):
+        """转换块 ID 为 Obsidian 块引用格式，删除无引用的块 ID"""
+        # 检查这一行是否只包含块 ID（支持所有UUID格式，允许缩进）
+        block_id_pattern = r'^\s*id:: ([a-zA-Z0-9-]+)\s*$'
+        match = re.match(block_id_pattern, line)
+        
+        if match:
             uuid = match.group(1)
-            
-            # 查找已经映射的块ID
+            # 查找已经映射的块ID（只有被引用的才会被映射）
             if uuid in self.block_uuid_map:
                 _, block_id = self.block_uuid_map[uuid]
                 return f"^{block_id}"
             else:
-                # 这种情况不应该发生，因为我们已经预先收集了所有映射
-                # 但为了安全起见，生成一个新的块ID
-                self.block_ref_counter += 1
-                block_id = f"block{self.block_ref_counter}"
-                return f"^{block_id}"
+                # 没有被引用的块 ID，删除整行
+                return ""
         
-        return re.sub(r'id:: ([a-f0-9-]+)', replace_block_id, line)
+        return line
     
     def _convert_asset_paths(self, line: str) -> str:
         """转换资源文件路径"""
@@ -482,7 +497,7 @@ class ObsidianFormatter:
         original_stats = {
             'page_links': len(re.findall(r'\[\[([^\]]+)\]\]', original_data['content'])),
             'block_refs': len(re.findall(r'\(\(([^)]+)\)\)', original_data['content'])),
-            'block_ids': len(re.findall(r'id:: ([a-f0-9-]+)', original_data['content'])),
+            'block_ids': len(re.findall(r'^\s*id:: ([a-zA-Z0-9-]+)', original_data['content'], re.MULTILINE)),
             'assets': len(re.findall(r'!\[([^\]]*)\]\(([^)]+)\)', original_data['content']))
         }
         

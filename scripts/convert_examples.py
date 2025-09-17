@@ -88,14 +88,27 @@ def convert_logseq_to_obsidian(remove_top_level_bullets=False, category_tag=None
         print("❌ 没有找到 markdown 文件")
         return []
     
-    # 第一阶段：收集所有文件的块ID映射和PDF高亮信息
-    print("\n🔍 第一阶段：收集块ID映射和PDF高亮信息...")
+    # 第一阶段：收集所有被引用的 UUID
+    print("\n🔍 第一阶段：收集被引用的块...")
+    
+    for i, md_file in enumerate(md_files, 1):
+        try:
+            parsed_data = parser.parse_file(md_file)
+            # 收集被引用的 UUID
+            formatter.collect_referenced_uuids(parsed_data)
+        except Exception as e:
+            print(f"   ⚠️  收集引用失败 [{i}/{len(md_files)}] {md_file.stem}: {e}")
+    
+    print(f"   ✅ 收集完成，共 {len(formatter.referenced_uuids)} 个被引用的块")
+    
+    # 第二阶段：收集PDF高亮信息并为被引用的块分配ID
+    print("\n🔍 第二阶段：收集块ID映射和PDF高亮信息...")
     
     # 收集 PDF 高亮信息
     formatter.collect_pdf_highlights(str(LOGSEQ_DATA_DIR))
     print(f"   ✅ 收集PDF高亮完成，共 {len(formatter.pdf_highlight_map)} 个高亮注释")
     
-    # 收集块ID映射
+    # 收集块ID映射（只为被引用的块分配ID）
     for i, md_file in enumerate(md_files, 1):
         try:
             parsed_data = parser.parse_file(md_file)
@@ -106,10 +119,10 @@ def convert_logseq_to_obsidian(remove_top_level_bullets=False, category_tag=None
         except Exception as e:
             print(f"   ⚠️  收集映射失败 [{i}/{len(md_files)}] {md_file.stem}: {e}")
     
-    print(f"   ✅ 收集完成，共 {len(formatter.block_uuid_map)} 个块映射")
+    print(f"   ✅ 收集完成，共 {len(formatter.block_uuid_map)} 个被引用的块映射")
     
-    # 第二阶段：转换每个文件
-    print("\n🔄 第二阶段：转换文件内容...")
+    # 第三阶段：转换每个文件
+    print("\n🔄 第三阶段：转换文件内容...")
     for i, md_file in enumerate(md_files, 1):
         relative_path = md_file.relative_to(LOGSEQ_DATA_DIR)
         print(f"\n📄 [{i}/{len(md_files)}] {relative_path}")
