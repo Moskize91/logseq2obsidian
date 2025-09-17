@@ -43,6 +43,39 @@ class TestFilenameProcessing(unittest.TestCase):
                 result = self.processor.process_filename(input_name)
                 self.assertEqual(result, expected_output)
                 
+    def test_date_format_conversion(self):
+        """测试LogSeq日期格式转换为Obsidian格式"""
+        formatter = ObsidianFormatter()
+        
+        # 测试标准日期格式转换
+        test_cases = [
+            # LogSeq格式 -> Obsidian格式
+            ("2025_01_02", "2025-01-02.md"),
+            ("2024_12_31", "2024-12-31.md"),
+            ("2023_03_15", "2023-03-15.md"),
+            ("2022_09_07", "2022-09-07.md"),
+            ("2024_01_06 2", "2024-01-06 2.md"),  # 带后缀
+        ]
+        
+        for input_name, expected in test_cases:
+            result = formatter.generate_filename(input_name)
+            self.assertEqual(result, expected,
+                           f"日期格式转换失败: {input_name} -> {result}, 期望: {expected}")
+        
+        # 测试非日期文件不受影响
+        non_date_cases = [
+            ("normal_file", "normal_file.md"),
+            ("not_a_date_2025_format", "not_a_date_2025_format.md"),
+            ("2025_1_2", "2025_1_2.md"),      # 不标准格式
+            ("2025_13_01", "2025_13_01.md"),  # 无效月份
+            ("2025_01_32", "2025_01_32.md"),  # 无效日期
+        ]
+        
+        for input_name, expected in non_date_cases:
+            result = formatter.generate_filename(input_name)
+            self.assertEqual(result, expected,
+                           f"非日期文件处理失败: {input_name} -> {result}, 期望: {expected}")
+
     def test_obsidian_forbidden_chars(self):
         """测试 Obsidian 不支持字符的替换"""
         test_cases = [

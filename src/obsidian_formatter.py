@@ -518,6 +518,19 @@ class ObsidianFormatter:
         # 移除或替换 Obsidian 不支持的字符
         safe_name = re.sub(r'[<>:"/\\|?*]', '_', original_name)
         
+        # 转换 LogSeq 日期格式为 Obsidian 格式
+        # LogSeq: 2025_01_02 -> Obsidian: 2025-01-02
+        # 只转换合理的日期格式（年份2000-2099，月份01-12，日期01-31）
+        date_pattern = r'^(20[0-9]{2})_([0-1][0-9])_([0-3][0-9])(.*)$'
+        date_match = re.match(date_pattern, safe_name)
+        if date_match:
+            year, month, day, suffix = date_match.groups()
+            # 基本的日期合理性检查
+            month_int = int(month)
+            day_int = int(day)
+            if 1 <= month_int <= 12 and 1 <= day_int <= 31:
+                safe_name = f"{year}-{month}-{day}{suffix}"
+        
         # 确保 .md 扩展名
         if not safe_name.endswith('.md'):
             safe_name += '.md'
