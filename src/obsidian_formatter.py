@@ -233,6 +233,9 @@ class ObsidianFormatter:
         if self.remove_top_level_bullets:
             formatted_lines = self._remove_top_level_bullets(formatted_lines)
         
+        # 格式优化：处理空行和标题间距
+        formatted_lines = self._optimize_formatting(formatted_lines)
+        
         # 组合 frontmatter 和内容
         if frontmatter:
             return frontmatter + '\n' + '\n'.join(formatted_lines)
@@ -898,3 +901,41 @@ class ObsidianFormatter:
                 result_lines.append(line)
         
         return result_lines
+    
+    def _optimize_formatting(self, lines: list) -> list:
+        """格式优化：处理空行和标题间距
+        
+        1. 合并连续多个空行为单个空行
+        2. 确保标题前有空行（除非是文档开头）
+        3. 清理空行中的空格和缩进
+        """
+        if not lines:
+            return []
+        
+        result = []
+        prev_line_was_empty = False
+        
+        for i, line in enumerate(lines):
+            # 检查当前行是否为空行（包括只有空格/制表符的行，或只有单个 '-' 的行）
+            stripped = line.strip()
+            is_empty_line = not stripped or stripped == '-'
+            
+            # 检查当前行是否为标题
+            is_heading = stripped.startswith('#') and len(stripped) > 1 and stripped[1] in ' #'
+            
+            if is_empty_line:
+                # 如果前一行不是空行，添加一个干净的空行
+                if not prev_line_was_empty:
+                    result.append('')
+                    prev_line_was_empty = True
+                # 如果前一行已经是空行，跳过当前空行（合并连续空行）
+            else:
+                # 非空行处理
+                if is_heading and i > 0 and not prev_line_was_empty:
+                    # 标题前需要空行，但前一行不是空行，添加空行
+                    result.append('')
+                
+                result.append(line)
+                prev_line_was_empty = False
+        
+        return result
