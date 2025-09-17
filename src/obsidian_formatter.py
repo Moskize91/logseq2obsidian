@@ -754,19 +754,17 @@ class ObsidianFormatter:
         if not content_lines:
             return ""
         
-        # 检查第一行实际内容是否以分类标签开头
+        # 检查第一行实际内容是否包含分类标签
         first_content_line = content_lines[0].strip()
-        category_tag_pattern = f"#{self.category_tag}"
         
         # 移除 Logseq 列表标记（- 开头），获取实际内容
         content_without_bullets = self._remove_logseq_bullets(first_content_line)
         
-        # 检查标签是否在实际内容的开头
-        if content_without_bullets.startswith(category_tag_pattern):
-            # 确保这是一个完整的标签（后面是空格、行尾或其他标签）
-            after_tag = content_without_bullets[len(category_tag_pattern):]
-            if not after_tag or after_tag[0].isspace() or after_tag[0] == '#':
-                return self.category_folder
+        # 检查标签是否在实际内容中（使用正则表达式确保是完整标签）
+        # 匹配 #tag，确保前后是单词边界或特定字符
+        tag_pattern = rf'(^|\s)#{re.escape(self.category_tag)}($|\s|#)'
+        if re.search(tag_pattern, content_without_bullets):
+            return self.category_folder
         
         return ""
     
@@ -775,16 +773,25 @@ class ObsidianFormatter:
         
         例如：
         "- #wiki 内容" -> "#wiki 内容"
-        "  - #wiki 内容" -> "#wiki 内容"
+        "  - #wiki 内容" -> "#wiki 内容"  
+        "- > #wiki 内容" -> "#wiki 内容"  (引用块中的标签)
         "#wiki 内容" -> "#wiki 内容"
         """
         stripped = line.strip()
         
         # 移除列表标记（- 或 * 后面跟空格）
         if stripped.startswith('- '):
-            return stripped[2:].strip()
+            content = stripped[2:].strip()
+            # 如果是引用块，进一步移除 > 标记
+            if content.startswith('> '):
+                content = content[2:].strip()
+            return content
         elif stripped.startswith('* '):
-            return stripped[2:].strip()
+            content = stripped[2:].strip()
+            # 如果是引用块，进一步移除 > 标记
+            if content.startswith('> '):
+                content = content[2:].strip()
+            return content
         elif stripped == '-' or stripped == '*':
             return ""
         
