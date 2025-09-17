@@ -19,7 +19,7 @@ def test_sample1():
     print("=== 测试 sample1.md ===")
     
     # 文件路径
-    sample_file = Path(__file__).parent.parent / "examples" / "logseq_samples" / "sample1.md"
+    sample_file = Path(__file__).parent / "samples" / "sample1.md"
     
     if not sample_file.exists():
         print(f"错误：测试文件不存在: {sample_file}")
@@ -68,7 +68,7 @@ def test_journal_sample():
     print("\n=== 测试 journal_sample.md ===")
     
     # 文件路径
-    sample_file = Path(__file__).parent.parent / "examples" / "logseq_samples" / "journal_sample.md"
+    sample_file = Path(__file__).parent / "samples" / "journal_sample.md"
     
     if not sample_file.exists():
         print(f"错误：测试文件不存在: {sample_file}")

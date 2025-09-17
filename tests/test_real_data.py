@@ -93,13 +93,8 @@ def test_sample_files(max_files=5):
             # 格式转换
             converted_content = formatter.format_content(parsed_data)
             
-            # 添加 frontmatter
-            metadata = {
-                'logseq_source': md_file.name,
-                'source_path': str(md_file.relative_to(LOGSEQ_SOURCE_DIR)),
-                'created': file_manager._get_timestamp()
-            }
-            final_content = formatter.add_frontmatter(converted_content, metadata)
+            # 不再需要手动添加 frontmatter，format_content 已处理
+            final_content = converted_content
             
             # 生成输出文件名
             output_filename = formatter.generate_filename(md_file.stem)

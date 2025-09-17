@@ -21,8 +21,8 @@ def test_full_conversion():
     print("=== 完整转换测试 ===")
     
     # 设置路径
-    examples_dir = Path(__file__).parent.parent / "examples"
-    logseq_dir = examples_dir / "logseq_samples"
+    test_dir = Path(__file__).parent
+    logseq_dir = test_dir / "samples"
     output_dir = Path(__file__).parent / "output"  # 使用 tests/output 目录
     
     # 清空输出目录
@@ -52,21 +52,14 @@ def test_full_conversion():
             # 解析文件
             parsed_data = parser.parse_file(md_file)
             
-            # 格式转换
-            converted_content = formatter.format_content(parsed_data)
-            
-            # 添加 frontmatter
-            metadata = {
-                'logseq_source': md_file.name,
-                'created': file_manager._get_timestamp()
-            }
-            final_content = formatter.add_frontmatter(converted_content, metadata)
+            # 转换内容
+            converted_content = formatter.format_content(parsed_data, md_file.name)
             
             # 生成输出文件名
             output_filename = formatter.generate_filename(md_file.stem)
             
             # 写入文件
-            output_path = file_manager.write_file(output_filename, final_content)
+            file_manager.write_file(output_filename, converted_content)
             
             # 获取转换摘要
             conversion_summary = formatter.get_conversion_summary(parsed_data, converted_content)

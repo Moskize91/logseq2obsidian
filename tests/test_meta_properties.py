@@ -24,7 +24,7 @@ class TestMetaProperties(unittest.TestCase):
         
     def test_meta_property_parsing(self):
         """测试 meta 属性解析"""
-        sample_path = Path(__file__).parent.parent / "examples" / "logseq_samples" / "meta_sample.md"
+        sample_path = Path(__file__).parent / "samples" / "meta_sample.md"
         
         # 解析文件
         result = self.parser.parse_file(sample_path)
@@ -51,9 +51,9 @@ class TestMetaProperties(unittest.TestCase):
         self.assertIn('[[机器学习]]', prop_dict['tags'])
         self.assertIn('[[深度学习]]', prop_dict['tags'])
         
-    def test_meta_property_conversion(self):
-        """测试 meta 属性转换为 YAML frontmatter"""
-        sample_path = Path(__file__).parent.parent / "examples" / "logseq_samples" / "meta_sample.md"
+    def test_meta_properties_preserved_in_conversion(self):
+        """测试元属性在转换过程中被保留"""
+        sample_path = Path(__file__).parent / "samples" / "meta_sample.md"
         
         # 解析并转换
         result = self.parser.parse_file(sample_path)
@@ -95,7 +95,7 @@ class TestMetaProperties(unittest.TestCase):
         
     def test_meta_property_filtering(self):
         """测试 meta 属性行从内容中被正确过滤"""
-        sample_path = Path(__file__).parent.parent / "examples" / "logseq_samples" / "meta_sample.md"
+        sample_path = Path(__file__).parent / "samples" / "meta_sample.md"
         
         # 解析并转换
         result = self.parser.parse_file(sample_path)
@@ -132,7 +132,7 @@ class TestMetaProperties(unittest.TestCase):
         
     def test_statistics_include_meta_properties(self):
         """测试统计信息包含 meta 属性计数"""
-        sample_path = Path(__file__).parent.parent / "examples" / "logseq_samples" / "meta_sample.md"
+        sample_path = Path(__file__).parent / "samples" / "meta_sample.md"
         
         result = self.parser.parse_file(sample_path)
         stats = self.parser.get_statistics(result)
@@ -142,7 +142,7 @@ class TestMetaProperties(unittest.TestCase):
         
     def test_files_without_meta_properties(self):
         """测试没有 meta 属性的文件不受影响"""
-        sample_path = Path(__file__).parent.parent / "examples" / "logseq_samples" / "sample1.md"
+        sample_path = Path(__file__).parent / "samples" / "sample1.md"
         
         result = self.parser.parse_file(sample_path)
         stats = self.parser.get_statistics(result)

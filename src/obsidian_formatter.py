@@ -760,14 +760,31 @@ class ObsidianFormatter:
         # 检查第一行实际内容是否包含分类标签
         first_content_line = content_lines[0].strip()
         
+        # 检查是否是引用块（在移除列表标记之前）
+        stripped_line = first_content_line.strip()
+        is_quote_block = (stripped_line.startswith('- > ') or 
+                         stripped_line.startswith('* > ') or
+                         (stripped_line.startswith('-\t') and '> ' in stripped_line))
+        
         # 移除 Logseq 列表标记（- 开头），获取实际内容
         content_without_bullets = self._remove_logseq_bullets(first_content_line)
         
-        # 检查标签是否在实际内容中（使用正则表达式确保是完整标签）
-        # 匹配 #tag，确保前后是单词边界或特定字符
-        tag_pattern = rf'(^|\s)#{re.escape(self.category_tag)}($|\s|#)'
-        if re.search(tag_pattern, content_without_bullets):
-            return self.category_folder
+        # 检查第一行实际内容是否包含分类标签
+        tag_pattern = rf'(^|\s)#{re.escape(self.category_tag)}(\s|$|#)'
+        match = re.search(tag_pattern, content_without_bullets)
+        
+        if match:
+            if is_quote_block:
+                # 引用块中的标签总是有效的
+                return self.category_folder
+            else:
+                # 普通内容中，标签前面只能是空格或其他标签
+                tag_start_pos = match.start()
+                content_before_tag = content_without_bullets[:tag_start_pos].strip()
+                
+                # 如果标签前面只有空格或其他标签，则认为是有效的分类标签
+                if not content_before_tag or re.match(r'^(\s*#\w+\s*)+$', content_before_tag):
+                    return self.category_folder
         
         return ""
     
@@ -803,17 +820,34 @@ class ObsidianFormatter:
     def _get_actual_content_lines(self, lines, meta_properties):
         """获取实际内容行（排除 meta 属性和开头的空行）"""
         # 获取所有 meta 属性的行号
-        meta_line_numbers = {prop.line_number for prop in meta_properties} if meta_properties else set()
+        meta_line_numbers = set()
+        meta_content_patterns = set()  # 存储meta属性的内容模式，用于匹配没有行号的情况
+        
+        if meta_properties:
+            for prop in meta_properties:
+                # 兼容两种格式：对象（有line_number属性）和字典（没有line_number）
+                if hasattr(prop, 'line_number'):
+                    meta_line_numbers.add(prop.line_number)
+                else:
+                    # 字典格式，尝试通过内容匹配
+                    if isinstance(prop, dict) and 'key' in prop and 'value' in prop:
+                        pattern = f"{prop['key']}:: {prop['value']}"
+                        meta_content_patterns.add(pattern)
         
         actual_content_lines = []
         
         for i, line in enumerate(lines, 1):
-            # 跳过 meta 属性行
+            # 跳过 meta 属性行（通过行号）
             if i in meta_line_numbers:
                 continue
             
+            # 跳过 meta 属性行（通过内容匹配）
+            line_content = line.strip()
+            if meta_content_patterns and any(pattern in line_content for pattern in meta_content_patterns):
+                continue
+            
             # 跳过空行和只有空格的行
-            if not line.strip():
+            if not line_content:
                 continue
             
             # 这是实际内容行
