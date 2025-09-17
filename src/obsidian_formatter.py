@@ -5,14 +5,15 @@ Obsidian 格式化器
 
 import re
 from typing import Dict
+import urllib.parse
 from pathlib import Path
-from .filename_processor import FilenameProcessor
 
 
 class ObsidianFormatter:
     """Obsidian 格式转换器"""
     
-    def __init__(self, remove_top_level_bullets=False, category_tag=None, category_folder=None, input_assets_dir=None):
+    def __init__(self, remove_top_level_bullets=False, category_tag=None, category_folder=None, 
+                 input_assets_dir=None):
         # Obsidian 块引用计数器（用于生成唯一的块引用）
         self.block_ref_counter = 0
         # 是否删除第一级列表符号
@@ -28,6 +29,8 @@ class ObsidianFormatter:
         self.pdf_highlight_map = {}
         # 当前正在处理的文件名
         self.current_filename = None
+        # 当前目标文件夹
+        self.current_target_folder = ""
     
     def collect_pdf_highlights(self, logseq_dir: str):
         """收集所有 PDF 高亮映射"""
@@ -283,9 +286,10 @@ class ObsidianFormatter:
                     # 直接引用 hls__ 文件，返回注释
                     return f"<!-- PDF高亮文件引用: {link_text} -->"
             
-            # 处理普通文件名：解码 URL 编码并替换 Obsidian 不支持的字符
-            processed_link = FilenameProcessor.process_page_link(link_text)
-            # Obsidian 双链基本兼容，但需要确保文件扩展名
+            # 对于普通页面链接，只进行 URL 解码，但保持页面名称不变
+            # 页面链接在 Obsidian 中可以包含斜杠等特殊字符
+            processed_link = urllib.parse.unquote(link_text)
+            # Obsidian 双链基本兼容，保持原有的页面链接格式
             return f"[[{processed_link}]]"
 
         return re.sub(r'\[\[([^\]]+)\]\]', replace_link, line)

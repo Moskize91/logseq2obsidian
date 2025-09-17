@@ -89,10 +89,10 @@ def convert_logseq_to_obsidian(remove_top_level_bullets=False, category_tag=None
         return []
     
     # 第一阶段：收集所有文件的块ID映射和PDF高亮信息
-    print(f"\n🔍 第一阶段：收集块ID映射和PDF高亮信息...")
+    print("\n🔍 第一阶段：收集块ID映射和PDF高亮信息...")
     
     # 收集 PDF 高亮信息
-    formatter.collect_pdf_highlights(LOGSEQ_DATA_DIR)
+    formatter.collect_pdf_highlights(str(LOGSEQ_DATA_DIR))
     print(f"   ✅ 收集PDF高亮完成，共 {len(formatter.pdf_highlight_map)} 个高亮注释")
     
     # 收集块ID映射
@@ -109,7 +109,7 @@ def convert_logseq_to_obsidian(remove_top_level_bullets=False, category_tag=None
     print(f"   ✅ 收集完成，共 {len(formatter.block_uuid_map)} 个块映射")
     
     # 第二阶段：转换每个文件
-    print(f"\n🔄 第二阶段：转换文件内容...")
+    print("\n🔄 第二阶段：转换文件内容...")
     for i, md_file in enumerate(md_files, 1):
         relative_path = md_file.relative_to(LOGSEQ_DATA_DIR)
         print(f"\n📄 [{i}/{len(md_files)}] {relative_path}")
@@ -163,7 +163,7 @@ def convert_logseq_to_obsidian(remove_top_level_bullets=False, category_tag=None
             # 显示转换统计
             orig = conversion_summary['original']
             conv = conversion_summary['converted']
-            print(f"   ✅ 转换完成")
+            print("   ✅ 转换完成")
             print(f"   📊 页面链接: {orig['page_links']} → {conv['page_links']}")
             print(f"   📊 块引用: {orig['block_refs']} → {conv['block_refs']} (注释)")
             print(f"   📊 块ID: {orig['block_ids']} → {conv['block_ids']}")
