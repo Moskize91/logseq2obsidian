@@ -228,15 +228,16 @@ class ObsidianFormatter:
         for line in filtered_lines:
             formatted_line = self._process_line(line, parsed_data)
             formatted_lines.append(formatted_line)
-        
+
+        # 合并块ID到前一行
+        formatted_lines = self._merge_block_ids_to_previous_line(formatted_lines)
+
         # 如果启用了删除第一级列表符号，进行后处理
         if self.remove_top_level_bullets:
             formatted_lines = self._remove_top_level_bullets(formatted_lines)
-        
+
         # 格式优化：处理空行和标题间距
-        formatted_lines = self._optimize_formatting(formatted_lines)
-        
-        # 组合 frontmatter 和内容
+        formatted_lines = self._optimize_formatting(formatted_lines)        # 组合 frontmatter 和内容
         if frontmatter:
             return frontmatter + '\n' + '\n'.join(formatted_lines)
         else:
@@ -936,6 +937,34 @@ class ObsidianFormatter:
         
         return result_lines
     
+    def _merge_block_ids_to_previous_line(self, lines: list) -> list:
+        """将独立的块ID行合并到前一行的末尾
+        
+        Logseq中的 'id:: uuid' 独占一行，但Obsidian中的 '^blockXXX' 
+        应该紧跟在内容后面，用空格分隔
+        """
+        result = []
+        i = 0
+        
+        while i < len(lines):
+            line = lines[i].strip()
+            
+            # 检查是否是块ID行
+            if line.startswith('^') and len(line) > 1:
+                # 这是一个块ID行
+                if result and result[-1].strip():  # 前面有非空行
+                    # 将块ID合并到前一行
+                    result[-1] = result[-1].rstrip() + ' ' + line
+                else:
+                    # 前面没有内容或前一行是空行，独立保留
+                    result.append(line)
+            else:
+                result.append(lines[i])  # 保留原始格式
+            
+            i += 1
+        
+        return result
+
     def _optimize_formatting(self, lines: list) -> list:
         """格式优化：处理空行和标题间距
         
