@@ -579,8 +579,11 @@ class ObsidianFormatter:
     
     def generate_filename(self, original_name: str) -> str:
         """生成 Obsidian 兼容的文件名"""
+        # 首先对 URL 编码进行解码（LogSeq 文件名可能包含 %3A 等编码字符）
+        decoded_name = urllib.parse.unquote(original_name)
+        
         # 移除或替换 Obsidian 不支持的字符
-        safe_name = re.sub(r'[<>:"/\\|?*]', '_', original_name)
+        safe_name = re.sub(r'[<>:"/\\|?*]', '_', decoded_name)
         
         # 转换 LogSeq 日期格式为 Obsidian 格式
         # LogSeq: 2025_01_02 -> Obsidian: 2025-01-02
@@ -1061,8 +1064,8 @@ class ObsidianFormatter:
                     # 将块ID合并到前一行
                     result[-1] = result[-1].rstrip() + ' ' + line
                 else:
-                    # 前面没有内容或前一行是空行，独立保留
-                    result.append(line)
+                    # 前面没有内容或前一行是空行，独立保留，保持原始格式
+                    result.append(lines[i])
             else:
                 result.append(lines[i])  # 保留原始格式
             
