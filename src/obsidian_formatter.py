@@ -213,7 +213,8 @@ class ObsidianFormatter:
         lines = parsed_data['content'].split('\n')
         
         # 生成 YAML frontmatter（如果有 meta 属性）
-        frontmatter = self._generate_frontmatter(parsed_data.get('meta_properties', []))
+        # 传递原始文件名用于自动生成title
+        frontmatter = self._generate_frontmatter(parsed_data.get('meta_properties', []), filename)
         
         # 移除原始内容中的 meta 属性行
         filtered_lines = self._filter_meta_lines(lines, parsed_data.get('meta_properties', []))
@@ -750,12 +751,46 @@ class ObsidianFormatter:
         
         return normalized_indent + stripped
     
-    def _generate_frontmatter(self, meta_properties) -> str:
+    def _generate_frontmatter(self, meta_properties, original_filename: str = "") -> str:
         """生成 YAML frontmatter"""
-        if not meta_properties:
-            return ""
-        
         frontmatter_lines = ["---"]
+        
+        # 检查是否已有title属性
+        has_title = False
+        
+        for prop in meta_properties:
+            if prop.key == "title":
+                has_title = True
+                break
+        
+        # 如果没有现有title且文件名包含URL编码字符，则添加title
+        if not has_title and original_filename:
+            # 从文件名中去掉.md扩展名
+            title = original_filename
+            if title.endswith('.md'):
+                title = title[:-3]
+            
+            # 检查是否包含URL编码字符（如%3A, %3C, %3E等）
+            if '%' in title:
+                # URL解码以获取原始标题
+                decoded_title = urllib.parse.unquote(title)
+                # 只有当解码后的标题与原标题不同时，才添加title
+                if decoded_title != title:
+                    frontmatter_lines.append(f"title: {decoded_title}")
+        
+        # 检查是否实际添加了title
+        title_was_added = False
+        if not has_title and original_filename:
+            title = original_filename
+            if title.endswith('.md'):
+                title = title[:-3]
+            if '%' in title:
+                decoded_title = urllib.parse.unquote(title)
+                if decoded_title != title:
+                    title_was_added = True
+        
+        if not meta_properties and not title_was_added:
+            return ""
         
         for prop in meta_properties:
             key = prop.key
@@ -791,6 +826,9 @@ class ObsidianFormatter:
                     frontmatter_lines.append("tags:")
                     for tag in tags:
                         frontmatter_lines.append(f"  - {tag}")
+            elif key == "title":
+                # 标题属性 - 直接使用LogSeq的原始title
+                frontmatter_lines.append(f"title: {value}")
             elif key == "created-at":
                 # 日期属性
                 frontmatter_lines.append(f"created: {value}")
