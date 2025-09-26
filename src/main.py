@@ -10,6 +10,8 @@ import sys
 from pathlib import Path
 
 from .logseq_parser import LogseqParser
+from .obsidian_formatter import ObsidianFormatter
+from .file_manager import FileManager
 
 
 def main() -> None:
@@ -29,16 +31,16 @@ def main() -> None:
 
     output_path = Path(args.output_dir)
 
-    print("开始转换 Logseq 笔记...")
+    print(f"开始转换 Logseq 笔记...")
     print(f"输入目录: {input_path}")
     print(f"输出目录: {output_path}")
     print(f"预览模式: {'是' if args.dry_run else '否'}")
 
     try:
         # 初始化组件
-        logseq_parser = LogseqParser()
-        # formatter = ObsidianFormatter()  # TODO: 实现完整的转换流程
-        # file_manager = FileManager(output_path, dry_run=args.dry_run)
+        parser = LogseqParser()
+        formatter = ObsidianFormatter()
+        file_manager = FileManager(output_path, dry_run=args.dry_run)
 
         # TODO: 实现完整的转换流程
         print("转换功能正在开发中...")

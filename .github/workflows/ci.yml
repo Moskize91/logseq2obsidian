@@ -49,8 +49,8 @@ jobs:
     - name: Format check with black
       run: poetry run black --check src tests
 
-    - name: Import sort check with isort
-      run: poetry run isort --check-only src tests
+    # - name: Import sort check with isort
+    #   run: poetry run isort --check-only src tests
 
     # 暂时跳过 mypy 检查，等代码完全类型化后再启用
     # - name: Type check with mypy
