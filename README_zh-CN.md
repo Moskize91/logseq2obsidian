@@ -121,11 +121,22 @@ source .venv/bin/activate
 测试驱动开发，确保代码质量：
 
 ```bash
-# 开发时持续运行测试
-python test.py
+# 运行所有 lint 检查
+poetry run python scripts/lint.py
 
-# 修改代码后验证
-python test.py --test test_specific_feature
+# 自动修复格式问题
+poetry run python scripts/lint.py --fix
+
+# 运行完整检查（包括 mypy）
+poetry run python scripts/lint.py --full
+
+# 只运行特定类型的检查
+poetry run python scripts/lint.py --format-only  # 只检查格式
+poetry run python scripts/lint.py --lint-only    # 只检查代码质量
+poetry run python scripts/lint.py --test-only    # 只运行测试
+
+# CI 模式（更严格的检查）
+poetry run python scripts/lint.py --ci
 ```
 
 **测试类型：**
