@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 项目文档 / Project Documentation
+    url: https://github.com/moskize91/logseq2obsidian#readme
+    about: 查看项目文档和示例 / View project documentation and examples
+  - name: 讨论区 / Discussions
+    url: https://github.com/moskize91/logseq2obsidian/discussions
+    about: 提出问题和分享经验 / Ask questions and share experiences

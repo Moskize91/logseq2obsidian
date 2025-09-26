@@ -1,0 +1,20 @@
+# 代码所有者 / Code Owners
+# 所有文件的所有者 / Owner for all files
+* @moskize91
+
+# 工作流文件 / Workflow files
+.github/workflows/ @moskize91
+
+# 配置文件 / Configuration files
+pyproject.toml @moskize91
+poetry.lock @moskize91
+
+# 文档文件 / Documentation files
+*.md @moskize91
+docs/ @moskize91
+
+# 源代码 / Source code
+src/ @moskize91
+
+# 测试文件 / Test files
+tests/ @moskize91

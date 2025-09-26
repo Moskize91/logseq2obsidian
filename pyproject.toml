@@ -1,23 +1,98 @@
-[tool.poetry]
+[project]
 name = "logseq2obsidian"
-version = "1.0.0"
+version = "0.0.1"
 description = "A tool to convert Logseq notes to Obsidian format"
-authors = ["Moskize91 <moskize91@example.com>"]
+authors = [{name = "Tao Zeyu", email = "i@taozeyu.com"}]
 readme = "README.md"
-packages = [{include = "src"}]
+license = "MIT"
+requires-python = ">=3.10"
+keywords = ["logseq", "obsidian", "note-taking", "migration", "converter"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Text Processing :: Markup",
+    "Topic :: Utilities",
+]
+dependencies = [
+    "click>=8.1.0",
+    "pathspec>=0.11.0",
+]
 
-[tool.poetry.dependencies]
-python = "^3.10"
+[project.urls]
+Homepage = "https://github.com/moskize91/logseq2obsidian"
+Repository = "https://github.com/moskize91/logseq2obsidian"
+Issues = "https://github.com/moskize91/logseq2obsidian/issues"
 
-[tool.poetry.group.dev.dependencies]
-pytest = "^7.4.0"
-
-[tool.poetry.scripts]
+[project.scripts]
+logseq2obsidian = "src.main:main"
 convert-examples = "scripts.convert_examples:main"
 
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
 
-[tool.poetry.extras]
-cpu = []
+[tool.poetry]
+packages = [{include = "src"}]
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^7.4.0"
+black = "^23.0.0"
+isort = "^5.12.0"
+flake8 = "^6.0.0"
+mypy = "^1.5.0"
+
+[tool.black]
+line-length = 88
+target-version = ['py310']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | build
+  | dist
+)/
+'''
+
+[tool.isort]
+profile = "black"
+multi_line_output = 3
+line_length = 88
+known_first_party = ["src"]
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+strict_equality = true
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+disallow_untyped_defs = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short"

@@ -1,6 +1,11 @@
 <div align=center>
   <h1>Logseq to Obsidian</h1>
   <p><a href="./README.md">English</a> | <a href="./README_zh-CN.md">中文</a></p>
+
+  ![CI](https://github.com/moskize91/logseq2obsidian/workflows/CI/badge.svg)
+  ![Python Version](https://img.shields.io/badge/python-3.10%2B-blue)
+  ![License](https://img.shields.io/badge/license-MIT-green)
+  ![PyPI](https://img.shields.io/pypi/v/logseq2obsidian)
 </div>
 
 A Python tool to migrate [Logseq](https://logseq.com/) notes to [Obsidian](https://obsidian.md/) format.

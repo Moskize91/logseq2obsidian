@@ -1,0 +1,99 @@
+name: Bug Report
+description: Report a bug to help us improve
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢报告 bug！请填写以下信息帮助我们快速定位和修复问题。
+        Thank you for reporting a bug! Please fill out the information below to help us quickly identify and fix the issue.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: 问题描述 / Problem Description
+      description: 清晰简洁地描述 bug / A clear and concise description of the bug
+      placeholder: 描述你遇到的问题 / Describe the problem you're experiencing
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: 重现步骤 / Reproduction Steps
+      description: 如何重现这个 bug / How to reproduce this bug
+      placeholder: |
+        1. 输入文件 '...'
+        2. 运行命令 '....'
+        3. 看到错误 '....'
+
+        1. Input file '...'
+        2. Run command '....'
+        3. See error '....'
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: 期望行为 / Expected Behavior
+      description: 期望发生什么 / What you expected to happen
+      placeholder: 清晰简洁地描述你期望发生的情况 / A clear description of what you expected to happen
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: 实际行为 / Actual Behavior
+      description: 实际发生了什么 / What actually happened
+      placeholder: 清晰简洁地描述实际发生的情况 / A clear description of what actually happened
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: 版本信息 / Version Information
+      description: 你使用的 logseq2obsidian 版本 / Version of logseq2obsidian you're using
+      placeholder: 例如：v1.0.0 / e.g., v1.0.0
+    validations:
+      required: true
+
+  - type: input
+    id: environment
+    attributes:
+      label: 环境信息 / Environment
+      description: 操作系统和 Python 版本 / Operating system and Python version
+      placeholder: 例如：Windows 11, Python 3.10 / e.g., Windows 11, Python 3.10
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: 错误日志 / Error Logs
+      description: 如果有错误日志，请粘贴在这里 / If there are error logs, paste them here
+      placeholder: 粘贴完整的错误日志 / Paste the complete error logs
+      render: shell
+
+  - type: textarea
+    id: sample
+    attributes:
+      label: 示例文件 / Sample Files
+      description: 如果可能，提供导致问题的示例文件 / If possible, provide sample files that cause the issue
+      placeholder: 描述示例文件或提供文件内容 / Describe the sample files or provide file content
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: 检查清单 / Checklist
+      description: 在提交之前，请确认以下事项 / Before submitting, please confirm the following
+      options:
+        - label: 我已经搜索了现有的 issues / I have searched existing issues
+          required: true
+        - label: 我提供了足够的信息来重现问题 / I have provided enough information to reproduce the issue
+          required: true
+        - label: 我已经测试了最新的版本 / I have tested the latest version
+          required: true
