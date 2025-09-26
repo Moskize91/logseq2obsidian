@@ -121,11 +121,22 @@ source .venv/bin/activate
 Test-driven development ensures code quality:
 
 ```bash
-# Continuously run tests during development
-python test.py
+# Run all lint checks
+poetry run python scripts/lint.py
 
-# Verify after code changes
-python test.py --test test_specific_feature
+# Auto-fix formatting issues
+poetry run python scripts/lint.py --fix
+
+# Run full checks (including mypy)
+poetry run python scripts/lint.py --full
+
+# Run specific types of checks
+poetry run python scripts/lint.py --format-only  # format checks only
+poetry run python scripts/lint.py --lint-only    # code quality checks only
+poetry run python scripts/lint.py --test-only    # tests only
+
+# CI mode (stricter checks)
+poetry run python scripts/lint.py --ci
 ```
 
 **Test Types:**
