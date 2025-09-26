@@ -12,5 +12,9 @@
     "files.associations": {
         "*.md": "markdown"
     },
-    "python.analysis.typeCheckingMode": "basic"
+    "python.analysis.typeCheckingMode": "basic",
+    "cSpell.words": [
+        "Logseq",
+        "pytest"
+    ]
 }
